@@ -352,6 +352,16 @@ def generate_gbxml(xlsx_path: str, out_path: str):
     for o in openings:
         openings_by_wall.setdefault(o["wall_id"], []).append(o)
 
+    # Build unique WindowType definitions keyed by (ufactor, shgc)
+    window_types = {}   # (ufactor, shgc) -> wt_id
+    for o in openings:
+        if o["ufactor"] is not None:
+            key = (o["ufactor"], o["shgc"])
+            if key not in window_types:
+                u  = f"{o['ufactor']:.3f}".replace(".", "")
+                s  = f"{o['shgc']:.3f}".replace(".", "") if o["shgc"] is not None else "NA"
+                window_types[key] = f"WT-U{u}-S{s}"
+
     # -- Build gbXML tree --
     root = ET.Element("gbXML", {
         "xmlns":           "http://www.gbxml.org/schema",
@@ -361,6 +371,16 @@ def generate_gbxml(xlsx_path: str, out_path: str):
         "volumeUnit":      "CubicFeet",
         "version":         "6.01",
     })
+
+    # WindowType definitions (at root level)
+    for (ufactor, shgc), wt_id in window_types.items():
+        wt = ET.SubElement(root, "WindowType", {"id": wt_id})
+        u_label = f"U-{ufactor:.2f}"
+        s_label = f" SHGC-{shgc:.2f}" if shgc is not None else ""
+        ET.SubElement(wt, "Name").text    = u_label + s_label
+        ET.SubElement(wt, "Uvalue").text  = str(ufactor)
+        if shgc is not None:
+            ET.SubElement(wt, "SHGC").text = str(shgc)
 
     campus = ET.SubElement(root, "Campus", {"id": "campus-1"})
     ET.SubElement(campus, "Name").text     = project_name
@@ -410,16 +430,16 @@ def generate_gbxml(xlsx_path: str, out_path: str):
 
         # Openings
         for o in openings_by_wall.get(w["id"], []):
-            opening = ET.SubElement(surf, "Opening", {
-                "id":          o["id"],
-                "openingType": o["type"],
-            })
-            ET.SubElement(opening, "Name").text = o["name"]
-            ET.SubElement(opening, "Area").text = str(o["area"])
+            attrs = {"id": o["id"], "openingType": o["type"]}
             if o["ufactor"] is not None:
-                ET.SubElement(opening, "U-value").text = str(o["ufactor"])
-            if o["shgc"] is not None:
-                ET.SubElement(opening, "SHGC").text = str(o["shgc"])
+                wt_id = window_types.get((o["ufactor"], o["shgc"]))
+                if wt_id:
+                    attrs["windowTypeIdRef"] = wt_id
+            opening = ET.SubElement(surf, "Opening", attrs)
+            ET.SubElement(opening, "Name").text = o["name"]
+            # RectangularGeometry — EnergyPro reads area from Width x Height
+            side = math.sqrt(o["area"]) if o["area"] > 0 else 1.0
+            add_rect_geometry(opening, w["azimuth"], w["tilt"], side, side)
 
     # -- Write pretty XML --
     rough  = ET.tostring(root, encoding="unicode")
