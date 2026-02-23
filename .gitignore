@@ -1,0 +1,15 @@
+# Client project files - do not commit
+BLD EXAMPLES/
+extracted_xml/
+
+# Generated outputs (user creates these locally)
+test_output.xml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
