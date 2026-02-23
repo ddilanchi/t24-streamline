@@ -338,18 +338,14 @@ def generate_gbxml(xlsx_path: str, out_path: str):
         if not row[0] or str(row[0]).startswith("#"): continue
         oid, wall_id, name, otype, area, ufactor, shgc = (list(row) + [None]*7)[:7]
         if not oid: continue
-        o_area = float(area or 0)
-        side   = math.sqrt(o_area) if o_area > 0 else 1.0
         openings.append({
-            "id":       str(oid).strip().replace(" ", "_"),
-            "wall_id":  str(wall_id or "").strip().replace(" ", "_"),
-            "name":     str(name or oid),
-            "type":     resolve_opening_type(otype or "Window"),
-            "area":     o_area,
-            "rg_width": side,
-            "rg_height":side,
-            "ufactor":  float(ufactor) if ufactor not in ("", None) else None,
-            "shgc":     float(shgc)    if shgc    not in ("", None) else None,
+            "id":      str(oid).strip().replace(" ", "_"),
+            "wall_id": str(wall_id or "").strip().replace(" ", "_"),
+            "name":    str(name or oid),
+            "type":    resolve_opening_type(otype or "Window"),
+            "area":    float(area or 0),
+            "ufactor": float(ufactor) if ufactor not in ("", None) else None,
+            "shgc":    float(shgc)    if shgc    not in ("", None) else None,
         })
 
     openings_by_wall = {}
@@ -419,11 +415,11 @@ def generate_gbxml(xlsx_path: str, out_path: str):
                 "openingType": o["type"],
             })
             ET.SubElement(opening, "Name").text = o["name"]
+            ET.SubElement(opening, "Area").text = str(o["area"])
             if o["ufactor"] is not None:
                 ET.SubElement(opening, "U-value").text = str(o["ufactor"])
             if o["shgc"] is not None:
                 ET.SubElement(opening, "SHGC").text = str(o["shgc"])
-            add_rect_geometry(opening, w["azimuth"], w["tilt"], o["rg_width"], o["rg_height"])
 
     # -- Write pretty XML --
     rough  = ET.tostring(root, encoding="unicode")
