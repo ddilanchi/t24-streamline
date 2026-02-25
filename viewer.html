@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>T24 3D Viewer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
+       display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* Header */
+#header { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+          background: #161b22; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+#header h1 { font-size: 15px; font-weight: 600; color: #58a6ff; white-space: nowrap; }
+#file-select { background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+               border-radius: 6px; padding: 4px 8px; font-size: 13px; cursor: pointer; }
+.hbtn { padding: 5px 12px; border-radius: 6px; border: 1px solid #30363d;
+        background: #21262d; color: #c9d1d9; font-size: 13px; cursor: pointer; }
+.hbtn:hover { background: #30363d; }
+.hbtn.primary { background: #238636; border-color: #2ea043; color: #fff; }
+.hbtn.primary:hover { background: #2ea043; }
+#status-pill { margin-left: auto; font-size: 12px; color: #8b949e; }
+#status-pill.ok { color: #3fb950; }
+#status-pill.err { color: #f85149; }
+#status-pill.busy { color: #d29922; }
+
+/* Main layout */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* 3D Viewport */
+#vp-wrap { position: relative; flex: 0 0 62%; overflow: hidden; }
+#canvas { display: block; width: 100%; height: 100%; }
+#compass-ring { position: absolute; bottom: 10px; left: 10px; width: 80px; height: 80px;
+                border-radius: 50%; border: 1px solid #30363d;
+                background: rgba(13,17,23,0.75); pointer-events: none; }
+#legend { position: absolute; top: 10px; left: 10px; background: rgba(13,17,23,.85);
+          border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px;
+          font-size: 11px; line-height: 1.8; }
+#legend .dot { display: inline-block; width: 10px; height: 10px;
+               border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+#sel-info { position: absolute; bottom: 10px; right: 10px; max-width: 260px;
+            background: rgba(13,17,23,.9); border: 1px solid #30363d;
+            border-radius: 8px; padding: 8px 10px; font-size: 12px;
+            display: none; }
+#sel-info h3 { font-size: 13px; color: #58a6ff; margin-bottom: 4px; }
+#sel-info table { width: 100%; }
+#sel-info td:first-child { color: #8b949e; padding-right: 8px; }
+
+/* Data panel */
+#data-panel { flex: 1; display: flex; flex-direction: column;
+              border-left: 1px solid #30363d; overflow: hidden; }
+#tabs { display: flex; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+.tab-btn { flex: 1; padding: 8px 4px; background: transparent; border: none;
+           color: #8b949e; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab-btn.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+.tab-btn:hover:not(.active) { color: #c9d1d9; background: #161b22; }
+#tab-content { flex: 1; overflow-y: auto; }
+.tab-pane { display: none; padding: 10px; }
+.tab-pane.active { display: block; }
+
+/* Project key-value table */
+.kv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.kv-table td { padding: 6px 8px; border-bottom: 1px solid #21262d; vertical-align: middle; }
+.kv-table td:first-child { color: #8b949e; width: 44%; white-space: nowrap; }
+.kv-table td:last-child { color: #e6edf3; }
+.kv-table td[contenteditable="true"] { background: #1c2128; outline: 1px solid #58a6ff;
+  border-radius: 3px; }
+
+/* Data grid tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th { background: #161b22; color: #8b949e; padding: 6px 6px;
+                 font-weight: 600; text-align: left; border-bottom: 1px solid #30363d;
+                 white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+.data-table td { padding: 5px 6px; border-bottom: 1px solid #161b22;
+                 white-space: nowrap; max-width: 140px; overflow: hidden;
+                 text-overflow: ellipsis; cursor: default; }
+.data-table tr:hover td { background: #161b22; }
+.data-table tr.selected td { background: #1c2a3a; }
+.data-table td.editable[contenteditable="true"] {
+  background: #1c2128; outline: 1px solid #58a6ff;
+  border-radius: 3px; white-space: normal; overflow: visible; cursor: text; }
+.del-btn { background: none; border: none; color: #6e7681; cursor: pointer;
+           font-size: 12px; padding: 1px 4px; border-radius: 3px; }
+.del-btn:hover { color: #f85149; background: #21262d; }
+.add-row-btn { margin: 8px 0; padding: 5px 10px; background: #21262d;
+               border: 1px dashed #30363d; color: #8b949e; border-radius: 6px;
+               cursor: pointer; font-size: 12px; width: 100%; }
+.add-row-btn:hover { background: #30363d; color: #c9d1d9; }
+
+/* Generate output toast */
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+         background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+         padding: 10px 16px; font-size: 13px; max-width: 480px; display: none;
+         z-index: 999; white-space: pre-wrap; }
+#toast.ok { border-color: #2ea043; }
+#toast.err { border-color: #f85149; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>T24 3D Viewer</h1>
+  <select id="file-select"></select>
+  <button class="hbtn" onclick="reloadData()">⟳ Refresh</button>
+  <button class="hbtn primary" onclick="generateXML()">Generate gbXML</button>
+  <span id="status-pill">Loading…</span>
+</div>
+
+<div id="main">
+  <div id="vp-wrap">
+    <canvas id="canvas"></canvas>
+    <div id="legend">
+      <div><span class="dot" style="background:#5B8DB8"></span>Exterior Wall</div>
+      <div><span class="dot" style="background:#9E9E9E"></span>Interior Wall</div>
+      <div><span class="dot" style="background:#C85250"></span>Roof</div>
+      <div><span class="dot" style="background:#607D8B"></span>Slab</div>
+      <div><span class="dot" style="background:#87CEEB;opacity:.8"></span>Window</div>
+      <div><span class="dot" style="background:#FFD700;opacity:.8"></span>Skylight</div>
+      <div><span class="dot" style="background:#F39C12;opacity:.8"></span>Door</div>
+    </div>
+    <div id="compass-ring"></div>
+    <div id="sel-info"><h3 id="sel-title"></h3><table id="sel-table"></table></div>
+  </div>
+
+  <div id="data-panel">
+    <div id="tabs">
+      <button class="tab-btn active" onclick="showTab('project')">Project</button>
+      <button class="tab-btn" onclick="showTab('zones')">Zones</button>
+      <button class="tab-btn" onclick="showTab('walls')">Walls</button>
+      <button class="tab-btn" onclick="showTab('openings')">Openings</button>
+    </div>
+    <div id="tab-content">
+      <div id="pane-project" class="tab-pane active"></div>
+      <div id="pane-zones" class="tab-pane"></div>
+      <div id="pane-walls" class="tab-pane"></div>
+      <div id="pane-openings" class="tab-pane"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── State ─────────────────────────────────────────────────────────────────
+let scene, camera, renderer, controls, raycaster, mouse;
+let compassScene, compassCam;
+let selectedMesh = null;
+let buildingGroup = null;
+let currentFile = null;
+let buildingData = null;
+let geometryData = null;
+let lastMtime = 0;
+let isEditing = false;
+let selectedId = null;
+let selectableObjects = []; // {mesh, id, type, data}
+
+// ── Three.js init ─────────────────────────────────────────────────────────
+function initThree() {
+  const canvas = document.getElementById('canvas');
+  const wrap = canvas.parentElement;
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.autoClear = false;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d1117);
+  scene.fog = new THREE.FogExp2(0x0d1117, 0.003);
+
+  camera = new THREE.PerspectiveCamera(45, 1, 0.1, 3000);
+  camera.position.set(0, 80, 120);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(60, 120, 80);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x8ab4f8, 0.3);
+  fill.position.set(-60, 40, -80);
+  scene.add(fill);
+
+  // Grid
+  const grid = new THREE.GridHelper(600, 60, 0x21262d, 0x161b22);
+  scene.add(grid);
+
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  renderer.domElement.addEventListener('click', onCanvasClick);
+
+  // 3D Compass scene
+  compassScene = new THREE.Scene();
+  compassCam = new THREE.PerspectiveCamera(50, 1, 0.01, 20);
+  compassScene.add(new THREE.AmbientLight(0xffffff, 1.2));
+  // Axes: +X=East(red), -Z=North(blue), +Y=Up(green), faded reverses
+  const O = new THREE.Vector3(0, 0, 0);
+  const axDefs = [
+    { dir: new THREE.Vector3(0, 0, -1), color: 0x4488ff, label: 'N', lcolor: '#4488ff' },
+    { dir: new THREE.Vector3(1, 0, 0),  color: 0xff4444, label: 'E', lcolor: '#ff6666' },
+    { dir: new THREE.Vector3(0, 1, 0),  color: 0x44cc44, label: '',  lcolor: '' },
+    { dir: new THREE.Vector3(0, 0, 1),  color: 0x335577, label: 'S', lcolor: '#557799' },
+    { dir: new THREE.Vector3(-1, 0, 0), color: 0x773333, label: 'W', lcolor: '#886666' },
+  ];
+  axDefs.forEach(({ dir, color, label, lcolor }) => {
+    const len = label && label !== 'S' && label !== 'W' ? 1.0 : 0.6;
+    compassScene.add(new THREE.ArrowHelper(dir, O, len, color, len * 0.3, len * 0.18));
+    if (label) {
+      const sp = makeLabel(label, lcolor, 26);
+      sp.scale.set(3.5, 0.9, 1);
+      sp.position.copy(dir).multiplyScalar(len + 0.55);
+      compassScene.add(sp);
+    }
+  });
+
+  function resize() {
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const _camDir = new THREE.Vector3();
+  (function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+
+    const W = renderer.domElement.width, H = renderer.domElement.height;
+    // Main scene
+    renderer.setViewport(0, 0, W, H);
+    renderer.setScissor(0, 0, W, H);
+    renderer.setScissorTest(false);
+    renderer.clear();
+    renderer.render(scene, camera);
+
+    // Compass inset – bottom-left, 80×80 CSS px
+    const dpr = renderer.getPixelRatio();
+    const cs = Math.round(80 * dpr), cm = Math.round(10 * dpr);
+    renderer.setViewport(cm, cm, cs, cs);
+    renderer.setScissor(cm, cm, cs, cs);
+    renderer.setScissorTest(true);
+    camera.getWorldDirection(_camDir);
+    compassCam.position.copy(_camDir).negate().multiplyScalar(4);
+    compassCam.up.copy(camera.up);
+    compassCam.lookAt(O);
+    renderer.clearDepth();
+    renderer.render(compassScene, compassCam);
+    renderer.setScissorTest(false);
+  })();
+}
+
+// ── Colors ────────────────────────────────────────────────────────────────
+function zoneColor(c) {
+  const t = (c||'').toLowerCase();
+  if (t.includes('unconditioned')) return 0x6e7681;
+  if (t.includes('plenum')) return 0x9B59B6;
+  if (t.includes('heated only')) return 0xFF8C42;
+  if (t.includes('cooled only')) return 0x42C5FF;
+  if (t.includes('semi')) return 0xFFCC42;
+  return 0x4A90E2;
+}
+function surfColor(t) {
+  const s = (t||'').toLowerCase();
+  if (s.includes('roof')) return 0xC85250;
+  if (s.includes('interior') || s.includes('demising')) return 0x9E9E9E;
+  if (s.includes('slab') || s.includes('grade')) return 0x607D8B;
+  if (s.includes('underground')) return 0x5D4037;
+  if (s.includes('exposed') || s.includes('raised')) return 0x795548;
+  if (s.includes('ceiling')) return 0xE57373;
+  return 0x5B8DB8;
+}
+function openColor(t) {
+  const s = (t||'').toLowerCase();
+  if (s.includes('sky')) return 0xFFD700;
+  if (s.includes('door')) return 0xF39C12;
+  return 0x87CEEB;
+}
+
+// ── Text sprite ───────────────────────────────────────────────────────────
+function makeLabel(text, color = '#e6edf3', fontSize = 22) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 48;
+  const ctx = c.getContext('2d');
+  ctx.font = `bold ${fontSize}px system-ui`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 24);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(12, 2.5, 1);
+  return sp;
+}
+
+// ── Layout (adjacency-aware, multi-story) ─────────────────────────────────
+function layoutZones(zones, walls) {
+  const positions = {};
+  const zoneById = Object.fromEntries(zones.map(z => [z.id, z]));
+
+  // Group by floor
+  const floors = {};
+  zones.forEach(z => {
+    const fl = z.floor || 1;
+    (floors[fl] = floors[fl] || []).push(z);
+  });
+
+  // Compute base Y elevation for each floor (cumulative ceiling heights)
+  const sortedFloors = Object.keys(floors).map(Number).sort((a,b)=>a-b);
+  const floorBaseY = {};
+  let cumY = 0;
+  sortedFloors.forEach(fl => {
+    floorBaseY[fl] = cumY;
+    const maxH = Math.max(...floors[fl].map(z => z.height || 9));
+    cumY += maxH;
+  });
+
+  // Interior wall edges within same floor only
+  const edges = [];
+  (walls || []).forEach(w => {
+    const st = (w.type || '').toLowerCase();
+    if ((st.includes('interior') || st.includes('demising')) && w.adj_zone && w.azimuth != null) {
+      const fromZone = zoneById[w.zone_id];
+      const toZone = zoneById[w.adj_zone];
+      if (fromZone && toZone && (fromZone.floor||1) === (toZone.floor||1))
+        edges.push({ from: w.zone_id, to: w.adj_zone, azimuth: w.azimuth });
+    }
+  });
+
+  // BFS per floor: place connected zones snapped together
+  sortedFloors.forEach(fl => {
+    const flZones = floors[fl];
+    const placed = new Set();
+    if (!flZones.length) return;
+
+    positions[flZones[0].id] = { x: 0, z: 0, side: Math.sqrt(Math.max(flZones[0].area, 1)), y: floorBaseY[fl] };
+    placed.add(flZones[0].id);
+    const queue = [flZones[0].id];
+
+    while (queue.length) {
+      const zid = queue.shift();
+      const zpos = positions[zid];
+      edges.forEach(e => {
+        if (e.from !== zid || placed.has(e.to) || !zoneById[e.to]) return;
+        const az = e.azimuth * Math.PI / 180;
+        const nx = Math.sin(az), nz = -Math.cos(az);
+        const adjSide = Math.sqrt(Math.max(zoneById[e.to].area, 1));
+        positions[e.to] = {
+          x: zpos.x + nx * (zpos.side / 2 + adjSide / 2),
+          z: zpos.z + nz * (zpos.side / 2 + adjSide / 2),
+          side: adjSide, y: floorBaseY[fl]
+        };
+        placed.add(e.to);
+        queue.push(e.to);
+      });
+    }
+
+    // Grid fallback for unconnected zones on this floor
+    const GAP = 18;
+    const maxSide = Math.max(...flZones.map(z => Math.sqrt(Math.max(z.area, 1))), 10);
+    const cell = maxSide + GAP;
+    let gi = 0, maxX = 0;
+    placed.forEach(id => { if (positions[id]) maxX = Math.max(maxX, positions[id].x + positions[id].side / 2); });
+    flZones.forEach(z => {
+      if (placed.has(z.id)) return;
+      const side = Math.sqrt(Math.max(z.area, 1));
+      positions[z.id] = { x: maxX + GAP + (gi % 3) * cell, z: Math.floor(gi / 3) * cell, side, y: floorBaseY[fl] };
+      gi++;
+    });
+  });
+
+  return positions;
+}
+
+// ── Build scene ───────────────────────────────────────────────────────────
+function renderBuilding(data) {
+  if (buildingGroup) scene.remove(buildingGroup);
+  buildingGroup = new THREE.Group();
+  selectableObjects = [];
+
+  const pos = layoutZones(data.zones, data.walls);
+  const wallsByZone = {};
+  data.walls.forEach(w => {
+    (wallsByZone[w.zone_id] = wallsByZone[w.zone_id] || []).push(w);
+  });
+  const openByWall = {};
+  data.openings.forEach(o => {
+    (openByWall[o.wall_id] = openByWall[o.wall_id] || []).push(o);
+  });
+
+  data.zones.forEach(zone => {
+    const p = pos[zone.id]; if (!p) return;
+    const yBase = p.y || 0;
+    let h = zone.height;
+
+    // Use real CAD geometry if available, else square approximation
+    const geo_z = geometryData && geometryData.zones && geometryData.zones[zone.id];
+    if (geo_z && geo_z.ceiling_ht_ft) h = geo_z.ceiling_ht_ft;
+    let x, z, side;
+
+    if (geo_z) {
+      // Real polygon footprint from CAD
+      const verts = geo_z.vertices_ft;
+      const cx = geo_z.centroid_ft ? geo_z.centroid_ft[0] : verts.reduce((s,v)=>s+v[0],0)/verts.length;
+      const cy = geo_z.centroid_ft ? geo_z.centroid_ft[1] : verts.reduce((s,v)=>s+v[1],0)/verts.length;
+      x = cx; z = -cy;  // Y=North maps to -Z in Three.js
+      side = Math.sqrt(Math.max(zone.area, 1));
+
+      const shape = new THREE.Shape();
+      shape.moveTo(verts[0][0] - cx, -(verts[0][1] - cy));
+      for (let i = 1; i < verts.length; i++)
+        shape.lineTo(verts[i][0] - cx, -(verts[i][1] - cy));
+      shape.closePath();
+
+      const extG = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
+      // Rotate so extrusion goes up (Y) instead of Z
+      extG.rotateX(-Math.PI / 2);
+
+      const fillM = new THREE.MeshLambertMaterial({
+        color: zoneColor(zone.cond_type), transparent: true, opacity: 0.07, depthWrite: false
+      });
+      const fill = new THREE.Mesh(extG, fillM);
+      fill.position.set(cx, yBase, -cy);
+      fill.userData = { type: 'zone', id: zone.id, data: zone };
+      buildingGroup.add(fill);
+      selectableObjects.push(fill);
+
+      const wire = new THREE.LineSegments(
+        new THREE.EdgesGeometry(extG),
+        new THREE.LineBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.6 })
+      );
+      wire.position.set(cx, yBase, -cy);
+      buildingGroup.add(wire);
+    } else {
+      // Square approximation
+      ({ x, z, side } = p);
+      const boxG = new THREE.BoxGeometry(side, h, side);
+      const boxM = new THREE.MeshLambertMaterial({
+        color: zoneColor(zone.cond_type), transparent: true, opacity: 0.07, depthWrite: false
+      });
+      const box = new THREE.Mesh(boxG, boxM);
+      box.position.set(x, yBase + h / 2, z);
+      box.userData = { type: 'zone', id: zone.id, data: zone };
+      buildingGroup.add(box);
+      selectableObjects.push(box);
+
+      const wire = new THREE.LineSegments(
+        new THREE.EdgesGeometry(boxG),
+        new THREE.LineBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.6 })
+      );
+      wire.position.set(x, yBase + h / 2, z);
+      buildingGroup.add(wire);
+    }
+
+    // Label
+    const lbl = makeLabel(zone.name || zone.id);
+    lbl.position.set(x, yBase + h + 3, z);
+    buildingGroup.add(lbl);
+
+    // Walls
+    (wallsByZone[zone.id] || []).forEach(wall => {
+      const surfType = (wall.type || '').toLowerCase();
+      const isHoriz = /roof|slab|floor|ceiling/.test(surfType);
+
+      if (isHoriz) {
+        const isRoof = surfType.includes('roof');
+        const isSlab = surfType.includes('slab');
+        if (!isRoof && !isSlab) return;
+        const wSide = Math.min(Math.sqrt(Math.max(wall.area, 1)), side * 0.96);
+        const planeG = new THREE.PlaneGeometry(wSide, wSide);
+        const planeM = new THREE.MeshLambertMaterial({
+          color: surfColor(wall.type), side: THREE.DoubleSide, transparent: true, opacity: 0.88
+        });
+        const plane = new THREE.Mesh(planeG, planeM);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.set(x, yBase + (isRoof ? h + 0.08 : 0.08), z);
+        plane.userData = { type: 'wall', id: wall.id, data: wall };
+        buildingGroup.add(plane);
+        selectableObjects.push(plane);
+
+        // Skylights on roof
+        if (isRoof) {
+          (openByWall[wall.id] || []).forEach(o => {
+            const oSide = Math.min(Math.sqrt(Math.max(o.area, 0.5)), wSide * 0.6);
+            const og = new THREE.PlaneGeometry(oSide, oSide);
+            const om = new THREE.MeshLambertMaterial({
+              color: openColor(o.type), transparent: true, opacity: 0.7, side: THREE.DoubleSide
+            });
+            const om2 = new THREE.Mesh(og, om);
+            om2.rotation.x = -Math.PI / 2;
+            om2.position.set(x, yBase + h + 0.18, z);
+            om2.userData = { type: 'opening', id: o.id, data: o };
+            buildingGroup.add(om2);
+            selectableObjects.push(om2);
+          });
+        }
+      } else {
+        // Vertical wall — use real wall segment if geometry available
+        const geo_w = geometryData && geometryData.walls && geometryData.walls[wall.id];
+        let wx, wz, wallW, az;
+        az = wall.azimuth * Math.PI / 180;
+        const nx = Math.sin(az), nzDir = -Math.cos(az);
+        const wallH = h;
+
+        if (geo_w) {
+          const p1 = geo_w.p1_ft, p2 = geo_w.p2_ft;
+          const mx = (p1[0] + p2[0]) / 2;
+          const my = (p1[1] + p2[1]) / 2;
+          wx = mx; wz = -my;
+          wallW = Math.sqrt((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2);
+        } else {
+          wallW = Math.min(wall.area / Math.max(wallH, 1), side * 0.98);
+          const off = side / 2 + 0.15;
+          wx = x + nx * off; wz = z + nzDir * off;
+        }
+
+        const wallD = 0.5;  // wall thickness in ft
+        const wallG = new THREE.BoxGeometry(wallW, wallH, wallD);
+        const wallM = new THREE.MeshLambertMaterial({
+          color: surfColor(wall.type), transparent: true, opacity: 0.88
+        });
+        const wallMesh = new THREE.Mesh(wallG, wallM);
+        wallMesh.position.set(wx, yBase + wallH / 2, wz);
+        wallMesh.rotation.y = Math.atan2(nx, nzDir);
+        wallMesh.userData = { type: 'wall', id: wall.id, data: wall };
+        buildingGroup.add(wallMesh);
+        selectableObjects.push(wallMesh);
+
+        // Windows/doors on wall
+        const openD = 0.8;  // opening thickness — thicker than wall so it pops
+        (openByWall[wall.id] || []).forEach((o, oi) => {
+          const oSide = Math.sqrt(Math.max(o.area, 0.5));
+          const ow = Math.min(oSide, wallW * 0.75);
+          const oh = Math.min(oSide, wallH * 0.6);
+          const og = new THREE.BoxGeometry(ow, oh, openD);
+          const om = new THREE.MeshLambertMaterial({
+            color: openColor(o.type), transparent: true, opacity: 0.65
+          });
+          const mesh = new THREE.Mesh(og, om);
+          const step = wallW / (openByWall[wall.id].length + 1);
+          const localX = (oi + 1) * step - wallW / 2;
+          const fwd = 0.12;
+          mesh.position.set(
+            wx + nx * fwd + Math.cos(az) * localX,
+            yBase + wallH * 0.5,
+            wz + nzDir * fwd + Math.sin(az) * localX
+          );
+          mesh.rotation.y = Math.atan2(nx, nzDir);
+          mesh.userData = { type: 'opening', id: o.id, data: o };
+          buildingGroup.add(mesh);
+          selectableObjects.push(mesh);
+        });
+      }
+    });
+  });
+
+
+  scene.add(buildingGroup);
+  fitCamera(data.zones, pos);
+}
+
+function fitCamera(zones, positions) {
+  let minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity, totalH=0;
+  zones.forEach(z => {
+    const p = positions[z.id]; if (!p) return;
+    const s = p.side || Math.sqrt(Math.max(z.area,1));
+    minX = Math.min(minX, p.x - s/2); maxX = Math.max(maxX, p.x + s/2);
+    minZ = Math.min(minZ, p.z - s/2); maxZ = Math.max(maxZ, p.z + s/2);
+    totalH = Math.max(totalH, (p.y||0) + z.height);
+  });
+  const cx = (minX+maxX)/2, cz = (minZ+maxZ)/2;
+  const span = Math.max(maxX-minX, maxZ-minZ, 20);
+  camera.position.set(cx + span*0.6, span*0.7 + totalH*0.3, cz + span*1.0);
+  controls.target.set(cx, totalH/2, cz);
+  controls.update();
+}
+
+// ── Compass canvas ─────────────────────────────────────────────────────────
+function drawCompass(frontOrient) {
+  const cv = document.getElementById('compass');
+  const ctx = cv.getContext('2d');
+  const s = cv.width;
+  ctx.clearRect(0,0,s,s);
+  ctx.strokeStyle = '#30363d'; ctx.fillStyle = '#161b22';
+  ctx.beginPath(); ctx.arc(s/2,s/2,s/2-1,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  const dirs = [['N',s/2,8,'#f85149'],['S',s/2,s-2,'#6e7681'],['E',s-3,s/2+4,'#6e7681'],['W',3,s/2+4,'#6e7681']];
+  dirs.forEach(([t,x,y,c]) => {
+    ctx.fillStyle=c; ctx.font='bold 9px system-ui'; ctx.textAlign='center'; ctx.fillText(t,x,y);
+  });
+}
+
+// ── Click selection ────────────────────────────────────────────────────────
+function onCanvasClick(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(selectableObjects);
+  if (hits.length) {
+    const obj = hits[0].object;
+    selectObject(obj.userData.id, obj.userData.type, obj.userData.data);
+  } else {
+    clearSelection();
+  }
+}
+
+function selectObject(id, type, data) {
+  // Clear previous highlight
+  if (selectedMesh) {
+    if (selectedMesh.material && selectedMesh.material.emissive)
+      selectedMesh.material.emissive.setHex(0x000000);
+    selectedMesh = null;
+  }
+  // Highlight the clicked mesh
+  for (const obj of selectableObjects) {
+    if (obj.userData.id === id && obj.userData.type !== 'zone') {
+      if (obj.material && obj.material.emissive) {
+        obj.material.emissive.setHex(0x2255aa);
+        selectedMesh = obj;
+      }
+      break;
+    }
+  }
+  selectedId = id;
+  // Highlight in table
+  document.querySelectorAll('.data-table tr.selected').forEach(r => r.classList.remove('selected'));
+  document.querySelectorAll(`[data-row-id="${id}"]`).forEach(r => r.classList.add('selected'));
+
+  // Show info panel
+  const panel = document.getElementById('sel-info');
+  document.getElementById('sel-title').textContent = `${type.toUpperCase()}: ${data.name || id}`;
+  const tbl = document.getElementById('sel-table');
+  const skip = ['_row','id','name','azimuth'];
+  tbl.innerHTML = Object.entries(data)
+    .filter(([k]) => !skip.includes(k) && k[0] !== '_')
+    .map(([k,v]) => `<tr><td>${k.replace(/_/g,' ')}</td><td>${v ?? '—'}</td></tr>`)
+    .join('');
+  panel.style.display = 'block';
+
+  // Switch to appropriate tab
+  const tabMap = { zone:'zones', wall:'walls', opening:'openings' };
+  if (tabMap[type]) showTab(tabMap[type]);
+}
+
+function clearSelection() {
+  selectedId = null;
+  document.getElementById('sel-info').style.display = 'none';
+  document.querySelectorAll('.data-table tr.selected').forEach(r => r.classList.remove('selected'));
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+function status(msg, cls='') {
+  const el = document.getElementById('status-pill');
+  el.textContent = msg; el.className = cls;
+}
+
+// ── Data loading ───────────────────────────────────────────────────────────
+window.reloadData = async function() {
+  if (!currentFile) return;
+  status('Loading…', 'busy');
+  try {
+    const [d, geo] = await Promise.all([
+      api(`/api/data?file=${encodeURIComponent(currentFile)}`),
+      api(`/api/geometry?file=${encodeURIComponent(currentFile)}`),
+    ]);
+    if (d.error) { status('Error: ' + d.error, 'err'); return; }
+    buildingData = d;
+    geometryData = geo || null;
+    lastMtime = d._mtime;
+    renderBuilding(d);
+    renderTables(d);
+    const geoNote = geometryData ? ' (CAD geometry)' : '';
+    status(`Loaded ${d.zones.length} zones, ${d.walls.length} walls, ${d.openings.length} openings${geoNote}`, 'ok');
+  } catch(e) { status('Load failed', 'err'); }
+};
+
+async function init() {
+  initThree();
+  // Load file list
+  const files = await api('/api/files');
+  const sel = document.getElementById('file-select');
+  sel.innerHTML = files.map(f => `<option value="${f}">${f}</option>`).join('');
+  if (files.length) {
+    currentFile = files[0];
+    sel.value = currentFile;
+  }
+  sel.onchange = () => { currentFile = sel.value; reloadData(); };
+  await reloadData();
+
+  // Poll for external changes
+  setInterval(async () => {
+    if (isEditing || !currentFile) return;
+    const r = await api(`/api/mtime?file=${encodeURIComponent(currentFile)}`);
+    if (r.mtime && r.mtime !== lastMtime) reloadData();
+  }, 2500);
+}
+
+// ── Table rendering ────────────────────────────────────────────────────────
+const PROJ_FIELDS = [
+  ['name','Project Name',2,2],['address','Address',3,2],
+  ['climate_zone','Climate Zone',4,2],['building_type','Building Type',5,2],
+  ['front_orientation','Front Orientation',6,2],['standards_version','Standards Version',7,2],
+];
+const ZONE_COLS = [
+  ['id','Zone ID',1],['name','Zone Name',2],['area','Area (sqft)',3],
+  ['height','Height (ft)',4],['cond_type','Condition Type',5],['occ_type','Occupancy Type',6],
+  ['floor','Floor',7]
+];
+const WALL_COLS = [
+  ['id','Wall ID',1],['zone_id','Zone ID',2],['name','Wall Name',3],
+  ['type','Type',4],['orientation','Orientation',5],['area','Area (sqft)',6],
+  ['construction','Construction',7],['adj_zone','Adj Zone',8]
+];
+const OPEN_COLS = [
+  ['id','Opening ID',1],['wall_id','Wall ID',2],['name','Name',3],
+  ['type','Type',4],['area','Area (sqft)',5],['ufactor','U-Factor',6],['shgc','SHGC',7]
+];
+
+function renderTables(d) {
+  renderProjectPane(d.project);
+  renderGridPane('pane-zones', d.zones, ZONE_COLS, 'Zones',
+    () => ['NEW-ID','','0','9','Conditioned','','1']);
+  renderGridPane('pane-walls', d.walls, WALL_COLS, 'Walls',
+    () => ['NEW-WALL','','','Exterior Wall','South','0','','']);
+  renderGridPane('pane-openings', d.openings, OPEN_COLS, 'Openings',
+    () => ['NEW-OPEN','','','Window','0','','']);
+}
+
+function renderProjectPane(proj) {
+  const pane = document.getElementById('pane-project');
+  const rows = PROJ_FIELDS.map(([key,label,row,col]) => {
+    const val = proj[key] || '';
+    return `<tr>
+      <td>${label}</td>
+      <td contenteditable="false" data-row="${row}" data-col="${col}"
+          onclick="editKV(this)" onblur="saveKV(this,'${key}')"
+          onkeydown="kvKeydown(event,this,'${key}')">${val}</td>
+    </tr>`;
+  }).join('');
+  pane.innerHTML = `<table class="kv-table">${rows}</table>`;
+}
+
+function renderGridPane(paneId, rows, cols, sheet, defaultValues) {
+  const pane = document.getElementById(paneId);
+  if (!rows.length) {
+    pane.innerHTML = `<p style="color:#8b949e;padding:16px;font-size:13px">No data yet.</p>
+      <button class="add-row-btn" onclick="addRow('${sheet}',${JSON.stringify(defaultValues())})">+ Add Row</button>`;
+    return;
+  }
+  let html = `<table class="data-table"><thead><tr><th></th>${cols.map(([,h])=>`<th>${h}</th>`).join('')}</tr></thead><tbody>`;
+  rows.forEach(row => {
+    const rid = row.id;
+    const sel = selectedId === rid ? ' selected' : '';
+    html += `<tr class="${sel}" data-row-id="${rid}" onclick="rowClick(event,'${rid}','${sheet.replace(/s$/,'')}')">`;
+    html += `<td><button class="del-btn" onclick="deleteRow(event,'${sheet}',${row._row})">✕</button></td>`;
+    cols.forEach(([field,,col]) => {
+      const v = row[field] != null ? row[field] : '';
+      html += `<td class="editable" data-field="${field}" data-row="${row._row}" data-col="${col}"
+                   contenteditable="false"
+                   onclick="editCell(event,this)"
+                   onblur="saveCell(this)"
+                   onkeydown="cellKeydown(event,this)">${v}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += `</tbody></table><button class="add-row-btn" onclick="addRow('${sheet}',${JSON.stringify(defaultValues())})">+ Add Row</button>`;
+  pane.innerHTML = html;
+}
+
+// ── Editing helpers (exposed to inline handlers) ───────────────────────────
+window.editKV = function(td) {
+  td.contentEditable = 'true'; td.focus();
+  const r = document.createRange(); r.selectNodeContents(td);
+  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  isEditing = true;
+};
+window.kvKeydown = function(e, td, key) {
+  if (e.key === 'Enter') { e.preventDefault(); td.blur(); }
+  if (e.key === 'Escape') { td.textContent = buildingData.project[key]||''; td.contentEditable='false'; isEditing=false; }
+};
+window.saveKV = async function(td, key) {
+  td.contentEditable = 'false'; isEditing = false;
+  const val = td.textContent.trim();
+  if (val === String(buildingData.project[key]||'')) return;
+  buildingData.project[key] = val;
+  const row = parseInt(td.dataset.row), col = parseInt(td.dataset.col);
+  await api('/api/update', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ file: currentFile, sheet:'Project', row, col, value: val }) });
+  await reloadData();
+};
+
+window.editCell = function(e, td) {
+  e.stopPropagation();
+  td.contentEditable = 'true'; td.focus();
+  const r = document.createRange(); r.selectNodeContents(td);
+  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  isEditing = true;
+};
+window.cellKeydown = function(e, td) {
+  if (e.key === 'Enter') { e.preventDefault(); td.blur(); }
+  if (e.key === 'Escape') { td.contentEditable = 'false'; isEditing = false; td.blur(); }
+};
+window.saveCell = async function(td) {
+  td.contentEditable = 'false'; isEditing = false;
+  const val = td.textContent.trim();
+  const row = parseInt(td.dataset.row), col = parseInt(td.dataset.col);
+  await api('/api/update', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ file: currentFile, sheet: sheetFromPane(), row, col, value: val }) });
+  await reloadData();
+};
+
+function sheetFromPane() {
+  const active = document.querySelector('.tab-pane.active');
+  return active ? active.id.replace('pane-','').replace(/^\w/, c => c.toUpperCase()) : 'Zones';
+}
+
+window.rowClick = function(e, id, type) {
+  if (e.target.contentEditable === 'true' || e.target.classList.contains('del-btn')) return;
+  const data = (buildingData[type+'s'] || buildingData.openings || []).find(r => r.id === id);
+  if (data) selectObject(id, type, data);
+};
+
+window.deleteRow = async function(e, sheet, row) {
+  e.stopPropagation();
+  if (!confirm('Delete this row?')) return;
+  await api('/api/delete_row', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ file: currentFile, sheet, row }) });
+  await reloadData();
+};
+
+window.addRow = async function(sheet, values) {
+  await api('/api/add_row', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ file: currentFile, sheet, values }) });
+  await reloadData();
+  showTab(sheet.toLowerCase());
+};
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+window.showTab = function(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const names = ['project','zones','walls','openings'];
+    b.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.toggle('active', p.id === 'pane-'+name);
+  });
+};
+
+// ── Generate gbXML ────────────────────────────────────────────────────────
+window.generateXML = async function() {
+  if (!currentFile) return;
+  status('Generating…', 'busy');
+  const r = await api('/api/generate', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ file: currentFile }) });
+  const toast = document.getElementById('toast');
+  toast.className = r.ok ? 'ok' : 'err';
+  toast.textContent = r.ok ? `✓ Generated: ${r.outfile}\n${r.output}` : `✗ Error:\n${r.output||r.error}`;
+  toast.style.display = 'block';
+  setTimeout(() => toast.style.display = 'none', 6000);
+  status(r.ok ? 'gbXML generated' : 'Generate failed', r.ok ? 'ok' : 'err');
+};
+
+init();
+</script>
+</body>
+</html>

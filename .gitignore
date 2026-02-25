@@ -4,6 +4,9 @@ extracted_xml/
 
 # Generated outputs (user creates these locally)
 test_output.xml
+*_t24.json
+*_t24_takeoff.xlsx
+*_t24_takeoff_geometry.json
 
 # Python
 __pycache__/
@@ -13,3 +16,4 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+~$*.xlsx
