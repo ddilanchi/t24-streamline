@@ -187,6 +187,39 @@
   (tz-make-text (list (car pt) (+ (cadr pt) off) 0.0) th lbl)
   (setvar "CLAYER" lsave))
 
+;; ── Popup choice dialog (appears near cursor) ───────────────────────────────
+(defun tz-boundary-popup ( / dcl-path dcl-id result f)
+  "Shows a dialog with boundary failure options. Returns keyword string."
+  (setq dcl-path (vl-filename-mktemp "tz_bnd" nil ".dcl"))
+  (setq f (open dcl-path "w"))
+  (write-line "tz_bnd : dialog {" f)
+  (write-line "  label = \"BOUNDARY Failed\";" f)
+  (write-line "  : column {" f)
+  (write-line "    : button { key = \"retry\";  label = \"&Retry at new point\"; width = 28; fixed_width = true; }" f)
+  (write-line "    : button { key = \"patch\";  label = \"&Patch gaps (draw lines)\"; width = 28; fixed_width = true; }" f)
+  (write-line "    : button { key = \"manual\"; label = \"&Manual corners\"; width = 28; fixed_width = true; }" f)
+  (write-line "    : button { key = \"select\"; label = \"&Select existing polyline\"; width = 28; fixed_width = true; }" f)
+  (write-line "    : spacer { height = 0.3; }" f)
+  (write-line "    : button { key = \"cancel\"; label = \"Cancel\"; is_cancel = true; width = 28; fixed_width = true; }" f)
+  (write-line "  }" f)
+  (write-line "}" f)
+  (close f)
+
+  (setq result "Retry")
+  (setq dcl-id (load_dialog dcl-path))
+  (if (>= dcl-id 0)
+    (progn
+      (new_dialog "tz_bnd" dcl-id)
+      (action_tile "retry"  "(setq result \"Retry\")  (done_dialog 1)")
+      (action_tile "patch"  "(setq result \"Patch\")  (done_dialog 1)")
+      (action_tile "manual" "(setq result \"Manual\") (done_dialog 1)")
+      (action_tile "select" "(setq result \"Select\") (done_dialog 1)")
+      (action_tile "cancel" "(setq result nil) (done_dialog 0)")
+      (start_dialog)
+      (unload_dialog dcl-id)))
+  (vl-file-delete dcl-path)
+  result)
+
 ;; ── Manual corner-pick polyline builder ──────────────────────────────────────
 (defun tz-pick-corners ( / pts pt first-pt ent elist p)
   (princ "\n[T24] Click room corners in order. Press Enter when done (min 3 points).")
@@ -239,6 +272,7 @@
 (defun tz-thaw-layers (layer-names / )
   (foreach lname layer-names
     (command "_.LAYER" "_Thaw" lname "")))
+
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
 
@@ -295,6 +329,8 @@
 
   ;; Step 2: Remove vertices with interior angle < 60° or > 130°
   ;; One at a time — remove the worst offender, recompute, repeat
+  ;; Door notch vertices have extreme angles (~270° reflex or near 0°)
+  ;; Real room corners at 90° survive the filter
   (setq worst-i 0)
   (while (and worst-i (> (length verts) 3))
     (setq n (length verts)  worst-i nil  worst-diff 0.0  i 0)
@@ -520,37 +556,38 @@
           (princ (strcat "\n[T24] Froze door layer(s): "
                          (vl-string-trim "" (vl-princ-to-string froze)))))
 
-        ;; ── Run BOUNDARY — retry loop with pick-point option ──────────────
+        ;; ── Run BOUNDARY — progressive gap tolerance ────────────────────
         (setq old-gaptol (getvar "HPGAPTOL"))
-        (setvar "HPGAPTOL" 12.0)
         (setq ent nil)
 
-        ;; Use -BOUNDARY (command-line) with Object type = Polyline
-        ;; to avoid the "Create Region?" dialog prompt
-        ;; -BOUNDARY flow: Advanced options → set Object type → back → Pick point
-        (setq last-ent (entlast))
-        (command "_-BOUNDARY" "_Advanced" "_Object" "_Polyline" "" txt-pt "")
-        (if (not (equal (entlast) last-ent))
-          (progn
-            (setq ent (entlast))
-            ;; Safety: discard if not LWPOLYLINE anyway
-            (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
-              (progn
-                (princ (strcat "\n[T24] BOUNDARY created "
-                               (cdr (assoc 0 (entget ent)))
-                               " instead of polyline — discarding."))
-                (entdel ent)
-                (setq ent nil)))))
+        ;; Try BOUNDARY with progressively larger gap tolerance
+        ;; 0 = default, 6 = small cracks, 18 = door frame, 36 = standard door
+        (foreach gap-tol '(0 6 18 36)
+          (if (null ent)
+            (progn
+              (setvar "HPGAPTOL" (float gap-tol))
+              (setq last-ent (entlast))
+              (command "_-BOUNDARY" "_Advanced" "_Object" "_Polyline" "" txt-pt "")
+              (if (not (equal (entlast) last-ent))
+                (progn
+                  (setq ent (entlast))
+                  (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
+                    (progn (entdel ent) (setq ent nil)))
+                  (if (and ent (> gap-tol 0))
+                    (princ (strcat "\n[T24] BOUNDARY succeeded with gap tolerance "
+                                   (itoa gap-tol) "\"."))))))))
 
         ;; If failed, let user retry, patch gaps, or fall back
         (setq patch-lines '())
         (while (and (null ent)
                     (progn
                       (princ "\n[T24] BOUNDARY failed at that point.")
-                      (initget "Retry Patch Manual Select")
-                      (setq choice
-                        (getkword "\n[T24]   [Retry / Patch gaps / Manual corners / Select polyline] <Retry>: "))
-                      (or (null choice) (= choice "Retry") (= choice "Patch"))))
+                      (setq choice (tz-boundary-popup))
+                      (and choice  ;; nil = Cancel → exit loop
+                           (or (= choice "Retry") (= choice "Patch")))))
+
+          ;; Bump gap tolerance on retries
+          (setvar "HPGAPTOL" 12.0)
 
           (if (= choice "Patch")
             ;; ── Patch mode: draw lines to seal gaps, then auto-retry ──
@@ -571,7 +608,6 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying BOUNDARY..."))
-                  ;; Retry BOUNDARY at same point
                   (setq last-ent (entlast))
                   (command "_-BOUNDARY" "_Advanced" "_Object" "_Polyline" "" txt-pt "")
                   (if (not (equal (entlast) last-ent))
@@ -579,9 +615,6 @@
                       (setq ent (entlast))
                       (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
                         (progn
-                          (princ (strcat "\n[T24] BOUNDARY created "
-                                         (cdr (assoc 0 (entget ent)))
-                                         " — discarding."))
                           (entdel ent)
                           (setq ent nil))))))
                 (princ "\n[T24]   No lines drawn.")))
@@ -598,16 +631,13 @@
                       (setq ent (entlast))
                       (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
                         (progn
-                          (princ (strcat "\n[T24] BOUNDARY created "
-                                         (cdr (assoc 0 (entget ent)))
-                                         " — discarding."))
                           (entdel ent)
                           (setq ent nil))))))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
 
-        ;; Clean up patch lines after BOUNDARY succeeds or user moves on
+        ;; Clean up temporary lines after BOUNDARY succeeds or user moves on
         (foreach pent patch-lines (entdel pent))
         (if patch-lines
           (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
@@ -625,19 +655,24 @@
 
         ;; ── Manual fallback if BOUNDARY never succeeded ──────────────────
         (if (null ent)
-          (progn
-            (if (= choice "Select")
-              (progn
-                (princ "\n[T24] Select an existing closed polyline: ")
-                (setq sel2 (entsel))
-                (if (null sel2) (progn (alert "[T24] Cancelled.") (exit)))
-                (setq ent (car sel2))
-                (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
-                  (progn (alert "[T24] Not a polyline. Cancelled.") (exit))))
-              (progn
-                (setq ent (tz-pick-corners))
-                (if (null ent) (exit))))))
+          (cond
+            ((null choice)
+             (princ "\n[T24] Cancelled, skipping this zone."))
+            ((= choice "Select")
+             (progn
+               (princ "\n[T24] Select an existing closed polyline: ")
+               (setq sel2 (entsel))
+               (if (null sel2) (progn (princ "\n[T24] Cancelled.") (setq choice nil)))
+               (if sel2
+                 (progn
+                   (setq ent (car sel2))
+                   (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
+                     (progn (princ "\n[T24] Not a polyline, skipping.") (setq ent nil)))))))
+            (T  ;; "Manual" — pick corners
+             (setq ent (tz-pick-corners)))))
 
+        (if ent
+          (progn
             ;; Move to T24-ZONE layer if BOUNDARY put it elsewhere
             (setq edata (entget ent))
             (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
@@ -668,8 +703,9 @@
             (tz-zone-label txt-pt zone-name area-ft ceil-ht floor)
 
             (princ (strcat "\n[T24] Tagged: \"" zone-name
-                           "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor)))
-            ))) ; end progn, if zone-name, while
+                           "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor))))
+          (princ "\n[T24] No boundary created, skipping this zone."))
+            ))) ; end if ent, progn, if zone-name, while
 
   (princ "\n[T24] Done tagging zones.")
   (princ))
