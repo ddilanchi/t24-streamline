@@ -274,40 +274,20 @@
     (command "_.LAYER" "_Thaw" lname "")))
 
 
-;; ── HATCH-based boundary creation ────────────────────────────────────────────
-;; HPBOUNDRETAIN=1 makes HATCH create a boundary polyline automatically.
-;; Then delete the hatch, keep the polyline. Pick largest if multiple.
+;; ── Boundary creation ────────────────────────────────────────────────────────
+;; Uses BOUNDARY (which respects HPGAPTOL) rather than HATCH.
+;; Door layers are NOT frozen, so gaps from doors are handled by HPGAPTOL.
 
-(defun tz-hatch-boundary (pt / old-hpname old-hpassoc old-retain
-                              last-ent scan-ent scan-type
-                              hatch-ent ent best-area cur-area)
-  "Hatches at pt with HPBOUNDRETAIN=1, keeps boundary polyline, deletes hatch."
-  (setq old-hpname  (getvar "HPNAME")
-        old-hpassoc (getvar "HPASSOC")
-        old-retain  (getvar "HPBOUNDRETAIN"))
-  (setvar "HPNAME" "SOLID")
-  (setvar "HPASSOC" 0)
-  (setvar "HPBOUNDRETAIN" 1)
-  ;; Create the hatch — HPBOUNDRETAIN=1 also creates boundary polyline(s)
+(defun tz-hatch-boundary (pt / last-ent ent)
+  "Runs BOUNDARY at pt, returns polyline ename or nil."
   (setq last-ent (entlast))
-  (command "_-HATCH" pt "")
-  ;; Scan new entities: find hatch and polylines
-  (setq hatch-ent nil  ent nil  best-area 0.0
-        scan-ent (entnext last-ent))
-  (while scan-ent
-    (setq scan-type (cdr (assoc 0 (entget scan-ent))))
-    (cond
-      ((= scan-type "HATCH") (setq hatch-ent scan-ent))
-      ((= scan-type "LWPOLYLINE")
-        (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
-        (if (> cur-area best-area)
-          (setq best-area cur-area  ent scan-ent))))
-    (setq scan-ent (entnext scan-ent)))
-  ;; Delete the hatch
-  (if hatch-ent (entdel hatch-ent))
-  (setvar "HPNAME" old-hpname)
-  (setvar "HPASSOC" old-hpassoc)
-  (setvar "HPBOUNDRETAIN" old-retain)
+  (command "_-BOUNDARY" pt "")
+  (if (not (equal (entlast) last-ent))
+    (progn
+      (setq ent (entlast))
+      (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
+        (progn (entdel ent) (setq ent nil))))
+    (setq ent nil))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -607,7 +587,7 @@
 
         ;; ── Run HATCH-based boundary ────────────────────────────────
         (setq old-gaptol (getvar "HPGAPTOL"))
-        (setvar "HPGAPTOL" 12.0)
+        (setvar "HPGAPTOL" 1.0)
         (setq ent nil)
 
         (setq ent (tz-hatch-boundary txt-pt))
