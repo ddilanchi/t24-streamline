@@ -300,65 +300,81 @@
   (setq i 0)
   (repeat n (vla-SetBulge obj i 0.0) (setq i (1+ i))))
 
-(defun tz-seg-len (v1 v2 / dx dy)
-  (setq dx (- (car v2) (car v1))
-        dy (- (cadr v2) (cadr v1)))
-  (sqrt (+ (* dx dx) (* dy dy))))
+(defun tz-cp-seg-len (v1 v2)
+  (sqrt (+ (expt (- (car v2) (car v1)) 2)
+           (expt (- (cadr v2) (cadr v1)) 2))))
 
-(defun tz-interior-angle (vp vc vn / bx by lb fx fy lf dot)
-  ;; Angle (degrees) at vertex vc between edges vp->vc and vc->vn
-  (setq bx (- (car vp) (car vc))  by (- (cadr vp) (cadr vc))
-        lb (sqrt (+ (* bx bx) (* by by)))
-        fx (- (car vn) (car vc))  fy (- (cadr vn) (cadr vc))
-        lf (sqrt (+ (* fx fx) (* fy fy))))
-  (if (or (< lb 1e-9) (< lf 1e-9))
-    180.0
-    (progn
-      (setq dot (max -1.0 (min 1.0
-                   (+ (* (/ bx lb) (/ fx lf))
-                      (* (/ by lb) (/ fy lf))))))
-      (* (/ 180.0 pi) (atan (sqrt (max 0.0 (- 1.0 (* dot dot)))) dot)))))
-
-(defun tz-clean-pline (ent / obj verts n i v0 v1 v2 ang
-                           new-verts worst-i worst-diff diff)
+(defun tz-clean-pline (ent / obj verts n i bulge arc-indices
+                           ai j slen door-j dir lo hi
+                           to-remove new-verts)
   (setq obj   (vlax-ename->vla-object ent)
-        verts (tz-pline-verts obj))   ; list of (x y bulge)
+        verts (tz-pline-verts obj)
+        n     (length verts))
 
-  ;; Step 1: Flatten all arc segments to straight chords
+  ;; Step 1: Find arc vertices and flatten all bulges
+  (setq arc-indices '()  i 0)
+  (repeat n
+    (setq bulge (caddr (nth i verts)))
+    (if (and bulge (/= bulge 0.0))
+      (setq arc-indices (cons i arc-indices)))
+    (setq i (1+ i)))
+  ;; Flatten all to straight
   (setq verts (mapcar '(lambda (v) (list (car v) (cadr v) 0.0)) verts))
 
-  ;; Step 2: Remove vertices with interior angle < 60° or > 130°
-  ;; One at a time — remove the worst offender, recompute, repeat
-  ;; Door notch vertices have extreme angles (~270° reflex or near 0°)
-  ;; Real room corners at 90° survive the filter
-  (setq worst-i 0)
-  (while (and worst-i (> (length verts) 3))
-    (setq n (length verts)  worst-i nil  worst-diff 0.0  i 0)
-    (repeat n
-      (setq v0  (nth (rem (+ n i -1) n) verts)
-            v1  (nth i verts)
-            v2  (nth (rem (1+ i) n) verts)
-            ang (tz-interior-angle v0 v1 v2))
-      (if (< ang 60.0)
+  ;; Step 2: For each arc, search nearby for a door-width segment (~34-44")
+  ;;         then delete everything between arc and that segment
+  (setq to-remove '())
+  (foreach ai arc-indices
+    (setq door-j nil)
+    ;; Search up to 8 vertices in each direction for a ~3' or 3'6" segment
+    ;; Door widths: 30" (2'6"), 32", 36" (3'), 42" (3'6") — range 28-44"
+    (foreach dir '(1 -1)
+      (if (null door-j)
         (progn
-          (setq diff (- 60.0 ang))
-          (if (> diff worst-diff)
-            (setq worst-diff diff  worst-i i))))
-      (if (> ang 130.0)
-        (progn
-          (setq diff (- ang 130.0))
-          (if (> diff worst-diff)
-            (setq worst-diff diff  worst-i i))))
-      (setq i (1+ i)))
-    ;; Remove the worst offender
-    (if worst-i
+          (setq j 1)
+          (while (and (null door-j) (<= j 8))
+            (setq slen (tz-cp-seg-len
+                    (nth (rem (+ n ai (* dir j)) n) verts)
+                    (nth (rem (+ n ai (* dir (1+ j))) n) verts)))
+            (if (and (>= slen 28.0) (<= slen 44.0))
+              (setq door-j (rem (+ n ai (* dir j)) n)))
+            (setq j (1+ j))))))
+
+    ;; Mark vertices between arc and door segment for removal
+    (if door-j
       (progn
-        (setq new-verts '()  i 0)
-        (repeat n
-          (if (/= i worst-i)
-            (setq new-verts (append new-verts (list (nth i verts)))))
-          (setq i (1+ i)))
-        (setq verts new-verts))))
+        ;; Figure out the short path from arc to door-j
+        ;; Forward distance (arc → door-j going forward around polygon)
+        (setq lo (min ai door-j)  hi (max ai door-j))
+        ;; Pick the shorter span
+        (if (<= (- hi lo) (- (+ n lo) hi))
+          ;; Short path is lo..hi — remove lo through hi
+          (progn
+            (setq i lo)
+            (repeat (1+ (- hi lo))
+              (setq to-remove (cons i to-remove))
+              (setq i (1+ i))))
+          ;; Short path wraps around — remove hi..n + 0..lo
+          (progn
+            (setq i hi)
+            (repeat (- n hi)
+              (setq to-remove (cons i to-remove))
+              (setq i (1+ i)))
+            (setq i 0)
+            (repeat (1+ lo)
+              (setq to-remove (cons i to-remove))
+              (setq i (1+ i))))))
+      ;; No door segment found — just remove the arc vertex
+      (setq to-remove (cons ai to-remove))))
+
+  (if to-remove
+    (progn
+      (setq new-verts '()  i 0)
+      (repeat n
+        (if (not (member i to-remove))
+          (setq new-verts (append new-verts (list (nth i verts)))))
+        (setq i (1+ i)))
+      (setq verts new-verts)))
 
   (if (>= (length verts) 3)
     (tz-set-pline-verts obj verts)
