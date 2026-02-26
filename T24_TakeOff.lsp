@@ -558,7 +558,7 @@
                                   (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                            (setq near-pt (cdr (assoc 11 near-ed))))
                          (setq near-dist (distance txt-ins near-pt))
-                         (if (< near-dist 36.0)
+                         (if (< near-dist 18.0)
                            (setq nearby-texts
                              (cons (list near-dist near-str) nearby-texts))))))
                     ;; INSERT (sub-block) — check its ATTRIBs for text
@@ -578,20 +578,23 @@
                                         (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
                                  (setq near-pt (cdr (assoc 11 sub-ed))))
                                (setq near-dist (distance txt-ins near-pt))
-                               (if (< near-dist 36.0)
+                               (if (< near-dist 18.0)
                                  (setq nearby-texts
                                    (cons (list near-dist near-str) nearby-texts)))))
                            (setq sub-ent (entnext sub-ent)))))))
                   (setq near-ent (entnext near-ent)))))))
 
-          ;; ── Not nested — search model space with ssget ──
+          ;; ── Not nested — spatial ssget within 18" box only ──
           (if txt-lyr
             (progn
-              (setq ss-near (ssget "X" (list (cons 8 txt-lyr)
-                                             '(-4 . "<OR")
-                                               '(0 . "TEXT")
-                                               '(0 . "MTEXT")
-                                             '(-4 . "OR>"))))
+              (setq ss-near (ssget "C"
+                              (list (- (car txt-ins) 18.0) (- (cadr txt-ins) 18.0) 0.0)
+                              (list (+ (car txt-ins) 18.0) (+ (cadr txt-ins) 18.0) 0.0)
+                              (list (cons 8 txt-lyr)
+                                    '(-4 . "<OR")
+                                      '(0 . "TEXT")
+                                      '(0 . "MTEXT")
+                                    '(-4 . "OR>"))))
               (if ss-near
                 (progn
                   (setq j 0)
@@ -608,19 +611,21 @@
                                      (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                               (setq near-pt (cdr (assoc 11 near-ed))))
                             (setq near-dist (distance txt-ins near-pt))
-                            (if (< near-dist 36.0)
+                            (if (< near-dist 18.0)
                               (setq nearby-texts
                                 (cons (list near-dist near-str) nearby-texts)))))))
                     (setq j (1+ j)))))))
 
-        ;; Sort by distance (closest first) and append
+        ;; Sort by distance, append only the closest one
         (if nearby-texts
           (progn
             (setq nearby-texts
               (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
-            (foreach nt nearby-texts
-              (setq zone-name (strcat zone-name " " (cadr nt)))
-              (princ (strcat "\n[T24]   Auto-appended: \"" (cadr nt) "\"")))))
+            (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))
+            (princ (strcat "\n[T24]   Auto-appended: \"" (cadr (car nearby-texts)) "\""))))
+        ;; Hard cap at 30 characters
+        (if (> (strlen zone-name) 30)
+          (setq zone-name (substr zone-name 1 30)))
 
         (princ (strcat "\n[T24] Zone name: \"" zone-name "\""))
 
