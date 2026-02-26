@@ -274,6 +274,42 @@
     (command "_.LAYER" "_Thaw" lname "")))
 
 
+;; ── HATCH-based boundary creation ────────────────────────────────────────────
+;; HPBOUNDRETAIN=1 makes HATCH create a boundary polyline automatically.
+;; Then delete the hatch, keep the polyline. Pick largest if multiple.
+
+(defun tz-hatch-boundary (pt / old-hpname old-hpassoc old-retain
+                              last-ent scan-ent scan-type
+                              hatch-ent ent best-area cur-area)
+  "Hatches at pt with HPBOUNDRETAIN=1, keeps boundary polyline, deletes hatch."
+  (setq old-hpname  (getvar "HPNAME")
+        old-hpassoc (getvar "HPASSOC")
+        old-retain  (getvar "HPBOUNDRETAIN"))
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
+  (setvar "HPBOUNDRETAIN" 1)
+  ;; Create the hatch — HPBOUNDRETAIN=1 also creates boundary polyline(s)
+  (setq last-ent (entlast))
+  (command "_-HATCH" pt "")
+  ;; Scan new entities: find hatch and polylines
+  (setq hatch-ent nil  ent nil  best-area 0.0
+        scan-ent (entnext last-ent))
+  (while scan-ent
+    (setq scan-type (cdr (assoc 0 (entget scan-ent))))
+    (cond
+      ((= scan-type "HATCH") (setq hatch-ent scan-ent))
+      ((= scan-type "LWPOLYLINE")
+        (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
+        (if (> cur-area best-area)
+          (setq best-area cur-area  ent scan-ent))))
+    (setq scan-ent (entnext scan-ent)))
+  ;; Delete the hatch
+  (if hatch-ent (entdel hatch-ent))
+  (setvar "HPNAME" old-hpname)
+  (setvar "HPASSOC" old-hpassoc)
+  (setvar "HPBOUNDRETAIN" old-retain)
+  ent)
+
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
 
 (defun tz-pline-verts (obj / coords nv i verts)
@@ -567,31 +603,14 @@
           (princ (strcat "\n[T24] Froze text layer(s): "
                          (vl-string-trim "" (vl-princ-to-string txt-lyrs-frozen)))))
 
-        (setq froze (tz-freeze-door-layers))
-        (if froze
-          (princ (strcat "\n[T24] Froze door layer(s): "
-                         (vl-string-trim "" (vl-princ-to-string froze)))))
+        ;; Door layers NOT frozen — freezing creates gaps that break boundary detection
 
-        ;; ── Run BOUNDARY — progressive gap tolerance ────────────────────
+        ;; ── Run HATCH-based boundary ────────────────────────────────
         (setq old-gaptol (getvar "HPGAPTOL"))
+        (setvar "HPGAPTOL" 12.0)
         (setq ent nil)
 
-        ;; Try BOUNDARY with progressively larger gap tolerance
-        ;; 0 = default, 6 = small cracks, 18 = door frame, 36 = standard door
-        (foreach gap-tol '(0 6 18 36)
-          (if (null ent)
-            (progn
-              (setvar "HPGAPTOL" (float gap-tol))
-              (setq last-ent (entlast))
-              (command "_-BOUNDARY" "_Advanced" "_Object" "_Polyline" "" txt-pt "")
-              (if (not (equal (entlast) last-ent))
-                (progn
-                  (setq ent (entlast))
-                  (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
-                    (progn (entdel ent) (setq ent nil)))
-                  (if (and ent (> gap-tol 0))
-                    (princ (strcat "\n[T24] BOUNDARY succeeded with gap tolerance "
-                                   (itoa gap-tol) "\"."))))))))
+        (setq ent (tz-hatch-boundary txt-pt))
 
         ;; If failed, let user retry, patch gaps, or fall back
         (setq patch-lines '())
@@ -601,9 +620,6 @@
                       (setq choice (tz-boundary-popup))
                       (and choice  ;; nil = Cancel → exit loop
                            (or (= choice "Retry") (= choice "Patch")))))
-
-          ;; Bump gap tolerance on retries
-          (setvar "HPGAPTOL" 12.0)
 
           (if (= choice "Patch")
             ;; ── Patch mode: draw lines to seal gaps, then auto-retry ──
@@ -623,37 +639,20 @@
               (if patch-lines
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
-                                 " patch line(s). Retrying BOUNDARY..."))
-                  (setq last-ent (entlast))
-                  (command "_-BOUNDARY" "_Advanced" "_Object" "_Polyline" "" txt-pt "")
-                  (if (not (equal (entlast) last-ent))
-                    (progn
-                      (setq ent (entlast))
-                      (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
-                        (progn
-                          (entdel ent)
-                          (setq ent nil))))))
+                                 " patch line(s). Retrying..."))
+                  (setq ent (tz-hatch-boundary txt-pt)))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (progn
-                  (setq last-ent (entlast))
-                  (command "_-BOUNDARY" "_Advanced" "_Object" "_Polyline" "" txt-pt "")
-                  (if (not (equal (entlast) last-ent))
-                    (progn
-                      (setq ent (entlast))
-                      (if (and ent (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE"))
-                        (progn
-                          (entdel ent)
-                          (setq ent nil))))))
+                (setq ent (tz-hatch-boundary txt-pt))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
 
-        ;; Clean up temporary lines after BOUNDARY succeeds or user moves on
+        ;; Clean up temporary lines after boundary succeeds or user moves on
         (foreach pent patch-lines (entdel pent))
         (if patch-lines
           (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
@@ -695,7 +694,7 @@
               (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 edata) edata)))
 
             ;; Clean: flatten arcs, remove stubs, remove acute/obtuse vertices
-            (tz-clean-pline ent)
+            ;; (tz-clean-pline ent)  ;; door-removal disabled for now
 
             ;; Compute area and centroid
             (setq pts      (tz-get-pts ent)
