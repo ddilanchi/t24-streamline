@@ -275,19 +275,76 @@
 
 
 ;; ── Boundary creation ────────────────────────────────────────────────────────
-;; Uses BOUNDARY (which respects HPGAPTOL) rather than HATCH.
-;; Door layers are NOT frozen, so gaps from doors are handled by HPGAPTOL.
+;; Uses _-BOUNDARY with progressive gap tolerance.
+;; Tries 0 → 4 → 12 → 36 → 48 until a polyline is created.
+;; Also handles REGION output (explode + PEDIT join → polyline).
 
-(defun tz-hatch-boundary (pt / last-ent ent)
-  "Runs BOUNDARY at pt, returns polyline ename or nil."
-  (setq last-ent (entlast))
+;; Core: run _-BOUNDARY at pt with given gap-tol, return largest polyline or nil
+(defun tz-try-boundary (pt gap-tol / old-gaptol last-ent ent etype best-area cur-area
+                                     region-last ss-exp scan-ent)
+  (setq old-gaptol (getvar "HPGAPTOL"))
+  (setvar "HPGAPTOL" gap-tol)
+  (setq last-ent (entlast)  ent nil)
   (command "_-BOUNDARY" pt "")
   (if (not (equal (entlast) last-ent))
     (progn
-      (setq ent (entlast))
-      (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
-        (progn (entdel ent) (setq ent nil))))
-    (setq ent nil))
+      ;; Convert any REGIONs to polylines first
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (setq etype (cdr (assoc 0 (entget scan-ent))))
+        (if (= etype "REGION")
+          (progn
+            (princ "\n[T24] Converting region to polyline...")
+            (setq region-last (entlast))
+            (command "_.EXPLODE" scan-ent "")
+            (setq ss-exp (ssadd)  scan-ent (entnext region-last))
+            (while scan-ent
+              (ssadd scan-ent ss-exp)
+              (setq scan-ent (entnext scan-ent)))
+            (if (> (sslength ss-exp) 0)
+              (command "_.PEDIT" (ssname ss-exp 0) "_Yes" "_Join" ss-exp "" ""))))
+        (setq scan-ent (entnext scan-ent)))
+      ;; Find largest polyline
+      (setq scan-ent (entnext last-ent)  best-area 0.0)
+      (while scan-ent
+        (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
+          (progn
+            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
+            (if (> cur-area best-area)
+              (setq best-area cur-area  ent scan-ent))))
+        (setq scan-ent (entnext scan-ent)))
+      ;; Delete everything else created
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (if (not (equal scan-ent ent))
+          (entdel scan-ent))
+        (setq scan-ent (entnext scan-ent)))))
+  (setvar "HPGAPTOL" old-gaptol)
+  ent)
+
+;; Quick attempt: HPGAPTOL=0 only. Fast to succeed or fail.
+;; If this fails the popup appears immediately — Retry uses tz-hatch-boundary-full.
+(defun tz-hatch-boundary (pt / ent)
+  (command "_.VIEW" "_Save" "TZ-BOUNDARY-VIEW")
+  (command "_.ZOOM" "_Extents")
+  (setq ent (tz-try-boundary pt 0.0))
+  (command "_.VIEW" "_Restore" "TZ-BOUNDARY-VIEW")
+  (command "_.VIEW" "_Delete" "TZ-BOUNDARY-VIEW" "")
+  ent)
+
+;; Full retry: tries progressive gap tolerances 4 → 12 → 36 → 48
+(defun tz-hatch-boundary-full (pt / ent)
+  (command "_.VIEW" "_Save" "TZ-BOUNDARY-VIEW")
+  (command "_.ZOOM" "_Extents")
+  (setq ent nil)
+  (foreach gap-tol '(4.0 12.0 36.0 48.0)
+    (if (null ent)
+      (progn
+        (setq ent (tz-try-boundary pt gap-tol))
+        (if ent
+          (princ (strcat "\n[T24] Boundary ok (gap tol " (rtos gap-tol 2 0) "\")"))))))
+  (command "_.VIEW" "_Restore" "TZ-BOUNDARY-VIEW")
+  (command "_.VIEW" "_Delete" "TZ-BOUNDARY-VIEW" "")
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -575,21 +632,10 @@
         (setvar "CMDDIA"  0)
         (setvar "CLAYER"  *TZ-LYR-ZONE*)
 
-        (setq txt-lyrs-frozen '())
-        (foreach lyr txt-layers
-          (if (tz-freeze-layer lyr)
-            (setq txt-lyrs-frozen (cons lyr txt-lyrs-frozen))))
-        (if txt-lyrs-frozen
-          (princ (strcat "\n[T24] Froze text layer(s): "
-                         (vl-string-trim "" (vl-princ-to-string txt-lyrs-frozen)))))
+        ;; Text layers NOT frozen — A-AREA-IDEN and similar layers often contain
+        ;; room boundary polylines alongside text; freezing them breaks boundary detection
 
-        ;; Door layers NOT frozen — freezing creates gaps that break boundary detection
-
-        ;; ── Run HATCH-based boundary ────────────────────────────────
-        (setq old-gaptol (getvar "HPGAPTOL"))
-        (setvar "HPGAPTOL" 1.0)
-        (setq ent nil)
-
+        ;; ── Run boundary (tz-hatch-boundary manages HPGAPTOL internally) ──
         (setq ent (tz-hatch-boundary txt-pt))
 
         ;; If failed, let user retry, patch gaps, or fall back
@@ -620,14 +666,14 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (tz-hatch-boundary txt-pt)))
+                  (setq ent (tz-hatch-boundary-full txt-pt)))
                 (princ "\n[T24]   No lines drawn.")))
 
-            ;; ── Retry mode: pick a new point ──
+            ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (tz-hatch-boundary txt-pt))
+                (setq ent (tz-hatch-boundary-full txt-pt))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
@@ -636,8 +682,6 @@
         (foreach pent patch-lines (entdel pent))
         (if patch-lines
           (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
-
-        (setvar "HPGAPTOL" old-gaptol)
 
         ;; Restore frozen layers immediately
         (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
@@ -696,6 +740,10 @@
 
             ;; Visual label — use txt-pt (click point, inside the room)
             (tz-zone-label txt-pt zone-name area-ft ceil-ht floor)
+
+            ;; Bring zone polyline + label to top of draw order
+            (command "_.DRAWORDER" ent "" "_Front")
+            (command "_.DRAWORDER" (entlast) "" "_Front")
 
             (princ (strcat "\n[T24] Tagged: \"" zone-name
                            "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor))))
