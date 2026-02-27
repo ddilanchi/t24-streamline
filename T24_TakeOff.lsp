@@ -275,8 +275,7 @@
 
 
 ;; ── Boundary creation ────────────────────────────────────────────────────────
-;; Uses _-BOUNDARY with progressive gap tolerance.
-;; Tries 0 → 4 → 12 → 36 → 48 until a polyline is created.
+;; Uses _-BOUNDARY at a fixed gap tolerance set once per session (default 1").
 ;; Also handles REGION output (explode + PEDIT join → polyline).
 
 ;; Core: run _-BOUNDARY at pt with given gap-tol, return largest polyline or nil
@@ -322,27 +321,11 @@
   (setvar "HPGAPTOL" old-gaptol)
   ent)
 
-;; Quick attempt: HPGAPTOL=0 only. Fast to succeed or fail.
-;; If this fails the popup appears immediately — Retry uses tz-hatch-boundary-full.
-(defun tz-hatch-boundary (pt / ent)
+;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
+(defun tz-hatch-boundary (pt gap-tol / ent)
   (command "_.VIEW" "_Save" "TZ-BOUNDARY-VIEW")
   (command "_.ZOOM" "_Extents")
-  (setq ent (tz-try-boundary pt 0.0))
-  (command "_.VIEW" "_Restore" "TZ-BOUNDARY-VIEW")
-  (command "_.VIEW" "_Delete" "TZ-BOUNDARY-VIEW" "")
-  ent)
-
-;; Full retry: tries progressive gap tolerances 4 → 12 → 36 → 48
-(defun tz-hatch-boundary-full (pt / ent)
-  (command "_.VIEW" "_Save" "TZ-BOUNDARY-VIEW")
-  (command "_.ZOOM" "_Extents")
-  (setq ent nil)
-  (foreach gap-tol '(4.0 12.0 36.0 48.0)
-    (if (null ent)
-      (progn
-        (setq ent (tz-try-boundary pt gap-tol))
-        (if ent
-          (princ (strcat "\n[T24] Boundary ok (gap tol " (rtos gap-tol 2 0) "\")"))))))
+  (setq ent (tz-try-boundary pt gap-tol))
   (command "_.VIEW" "_Restore" "TZ-BOUNDARY-VIEW")
   (command "_.VIEW" "_Delete" "TZ-BOUNDARY-VIEW" "")
   ent)
@@ -505,7 +488,7 @@
 (defun c:TZ-ZONE ( / *error* sel sel2 txt-ent txt-edata txt-str txt-lyr txt-pt
                      ent last-ent pts area-ft centroid
                      zone-id zone-name ceil-ht floor condition occupancy
-                     ce cd cl edata froze txt-lyrs-frozen old-gaptol
+                     ce cd cl edata froze txt-lyrs-frozen gap-tol
                      txt-layers choice ldata ed2
                      patch-lines pp1 pp2
                      ss-near j near-ent near-ed near-str near-pt near-dist
@@ -520,7 +503,7 @@
     (if cl (setvar "CLAYER"  cl))
     (if froze (tz-thaw-layers froze))
     (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
-    (setvar "HPGAPTOL" (if (boundp 'old-gaptol) old-gaptol 0.0))
+    (setvar "HPGAPTOL" 0.0)
     (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
       (princ (strcat "\n[T24] Error: " msg)))
     (princ))
@@ -535,11 +518,15 @@
   (setq floor (getint "\n[T24] Floor / story number <1>: "))
   (if (null floor) (setq floor 1))
 
+  (setq gap-tol (getreal "\n[T24] BOUNDARY gap tolerance in inches <1>: "))
+  (if (null gap-tol) (setq gap-tol 1.0))
+
   ;; Condition and occupancy default to generic values — sort out in EnergyPro
   (setq condition "Conditioned"
         occupancy "Residential")
 
-  (princ (strcat "\n[T24] Session: " (rtos ceil-ht 2 1) "' ceiling  |  Floor " (itoa floor)))
+  (princ (strcat "\n[T24] Session: " (rtos ceil-ht 2 1) "' ceiling  |  Floor " (itoa floor)
+                 "  |  Gap tol " (rtos gap-tol 2 1) "\""))
   (princ "\n[T24] Now click room name text for each zone. Press Enter when done.")
 
   ;; ── Main room loop ────────────────────────────────────────────────────────
@@ -696,8 +683,8 @@
         ;; interfere with boundary detection. Thawed per-room after cleanup below.
         (if txt-lyr (command "_.LAYER" "_F" txt-lyr ""))
 
-        ;; ── Run boundary (tz-hatch-boundary manages HPGAPTOL internally) ──
-        (setq ent (tz-hatch-boundary txt-pt))
+        ;; ── Run boundary ──
+        (setq ent (tz-hatch-boundary txt-pt gap-tol))
 
         ;; If failed, let user retry, patch gaps, or fall back
         (setq patch-lines '())
@@ -727,14 +714,14 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (tz-hatch-boundary-full txt-pt)))
+                  (setq ent (tz-hatch-boundary txt-pt gap-tol)))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (tz-hatch-boundary-full txt-pt))
+                (setq ent (tz-hatch-boundary txt-pt gap-tol))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
