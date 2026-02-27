@@ -360,11 +360,26 @@
   (sqrt (+ (expt (- (car v2) (car v1)) 2)
            (expt (- (cadr v2) (cadr v1)) 2))))
 
-(defun tz-clean-pline (ent / obj verts n i k slen
-                           new-verts found-door arc-idx arc-pt
-                           best-j best-k best-dist mid-pt d
+;; Angle (degrees) at vertex B between segments A->B and B->C.
+;; Returns 0-180. Small angles mean a sharp spike/fold.
+(defun tz-cp-angle (a b c / ax ay bx by cx cy v1x v1y v2x v2y dot cross ang)
+  (setq bx (car b) by (cadr b)
+        v1x (- (car a) bx)  v1y (- (cadr a) by)
+        v2x (- (car c) bx)  v2y (- (cadr c) by)
+        dot   (+ (* v1x v2x) (* v1y v2y))
+        cross (- (* v1x v2y) (* v1y v2x))
+        ang   (abs (* (/ 180.0 pi) (atan cross dot))))
+  ang)
+
+(defun tz-clean-pline (ent / obj verts n i k slen slen2
+                           new-verts found-door arc-idx arc-pt arc-key
+                           best-j best-k mid-pt d
                            inside-end fwd-dist bwd-dist to-remove
-                           spike-found d-direct d-path j p)
+                           skipped-arcs k2
+                           spike-found d-direct d-path j p
+                           fwd-door-j fwd-door-k bwd-door-j bwd-door-k
+                           saved-verts trial-verts min-ang ang
+                           va vb vc idx-a idx-b idx-c nn)
   (setq obj   (vlax-ename->vla-object ent)
         verts (tz-pline-verts obj)
         n     (length verts))
@@ -406,77 +421,191 @@
       (if (not spike-found) (setq i (1+ i)))))
 
 
-  ;; Door-collapse: find first arc, search ALL segments for nearest 30-44"
-  ;; door panel (by midpoint-to-arc distance, max 72"), delete the shorter
-  ;; polygon path between them (the notch).  Re-scan after each removal.
+  ;; Door-collapse: find first un-skipped arc, walk BOTH directions through
+  ;; tiny segments (<10") to find door candidates (30-44" single or pair).
+  ;; If both directions have a candidate, trial-remove one direction; if the
+  ;; result creates a sharp angle (<90°) at the junction, undo and use the
+  ;; other direction.  Unmatched arcs go to a skip-list.
   (princ (strcat "\n[DBG] door-collapse start: " (itoa (length verts)) " verts"))
-  (setq found-door T)
+  (setq found-door T  skipped-arcs '())
   (while found-door
     (setq found-door nil  n (length verts))
 
-    ;; Find first arc vertex (non-zero bulge)
+    ;; Find first arc vertex not in skip list
     (setq arc-idx nil  i 0)
     (while (and (null arc-idx) (< i n))
       (if (and (caddr (nth i verts)) (/= (caddr (nth i verts)) 0.0))
-        (setq arc-idx i))
+        (progn
+          (setq arc-key (strcat (rtos (car (nth i verts)) 2 1) ","
+                                (rtos (cadr (nth i verts)) 2 1)))
+          (if (not (member arc-key skipped-arcs))
+            (setq arc-idx i))))
       (setq i (1+ i)))
 
     (if arc-idx
       (progn
         (setq arc-pt (list (car (nth arc-idx verts))
                            (cadr (nth arc-idx verts))))
+        (setq arc-key (strcat (rtos (car arc-pt) 2 1) ","
+                              (rtos (cadr arc-pt) 2 1)))
         (princ (strcat "\n[DBG]   arc at i=" (itoa arc-idx)
                        " (" (rtos (car arc-pt) 2 2)
                        "," (rtos (cadr arc-pt) 2 2) ")"
                        " bulge=" (rtos (caddr (nth arc-idx verts)) 2 4)))
 
-        ;; Flatten this arc's bulge so segment lengths are accurate
-        (setq new-verts '()  k 0)
-        (repeat n
-          (if (= k arc-idx)
-            (setq new-verts (append new-verts
-                    (list (list (car arc-pt) (cadr arc-pt) 0.0))))
-            (setq new-verts (append new-verts (list (nth k verts)))))
-          (setq k (1+ k)))
-        (setq verts new-verts  n (length verts))
-
-        ;; Search ALL segments for nearest 30-44" door panel
-        (setq best-j nil  best-dist 72.0  j 0)
-        (repeat n
-          (setq k (rem (1+ j) n)
+        ;; ── Walk FORWARD from arc through ONLY tiny segs (< 10") ──
+        ;; Stop at the first non-tiny segment: it's either the door or
+        ;; we've reached a wall/corner and there's no door this way.
+        (setq fwd-door-j nil  fwd-door-k nil  i 1)
+        (while (and (null fwd-door-j) (<= i 8))
+          (setq j (rem (+ arc-idx i) n)
+                k (rem (+ arc-idx i 1) n)
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-          (if (and (>= slen 30.0) (<= slen 44.0))
-            (progn
-              (setq mid-pt (list
-                     (* 0.5 (+ (car (nth j verts)) (car (nth k verts))))
-                     (* 0.5 (+ (cadr (nth j verts)) (cadr (nth k verts))))))
-              (setq d (tz-cp-seg-len arc-pt mid-pt))
-              (if (< d best-dist)
-                (setq best-j j  best-k (rem (1+ j) n)  best-dist d))))
-          (setq j (1+ j)))
+          (princ (strcat "\n[DBG]     fwd step " (itoa i)
+                         " seg " (itoa j) "->" (itoa k)
+                         " len=" (rtos slen 2 2) "\""))
+          (cond
+            ;; Single segment 30-44" = door
+            ((and (>= slen 30.0) (<= slen 44.0))
+             (setq fwd-door-j j  fwd-door-k k))
+            ;; Potential split door half (10-25"): check pair, then STOP
+            ((and (>= slen 10.0) (<= slen 25.0))
+             (progn
+               (setq k2 (rem (+ arc-idx i 2) n)
+                     slen2 (tz-cp-seg-len
+                             (list (car (nth k verts)) (cadr (nth k verts)))
+                             (list (car (nth k2 verts)) (cadr (nth k2 verts)))))
+               (if (and (>= (+ slen slen2) 30.0) (<= (+ slen slen2) 44.0))
+                 (setq fwd-door-j j  fwd-door-k k2))
+               (setq i 99)))  ;; stop either way — non-tiny
+            ;; Tiny segment (< 10") — keep walking
+            ((< slen 10.0)
+             (setq i (1+ i)))
+            ;; Anything else (>44" wall, 25-30" etc) — stop
+            (T (setq i 99))))
+
+        ;; ── Walk BACKWARD from arc through ONLY tiny segs (< 10") ──
+        (setq bwd-door-j nil  bwd-door-k nil  i 1)
+        (while (and (null bwd-door-j) (<= i 8))
+          (setq j (rem (+ (- arc-idx i 1) n n) n)
+                k (rem (+ (- arc-idx i) n n) n)
+                slen (tz-cp-seg-len
+                       (list (car (nth j verts)) (cadr (nth j verts)))
+                       (list (car (nth k verts)) (cadr (nth k verts)))))
+          (princ (strcat "\n[DBG]     bwd step " (itoa i)
+                         " seg " (itoa j) "->" (itoa k)
+                         " len=" (rtos slen 2 2) "\""))
+          (cond
+            ;; Single segment 30-44" = door
+            ((and (>= slen 30.0) (<= slen 44.0))
+             (setq bwd-door-j j  bwd-door-k k))
+            ;; Potential split door half (10-25"): check pair, then STOP
+            ((and (>= slen 10.0) (<= slen 25.0))
+             (progn
+               (setq k2 (rem (+ (- arc-idx i 2) n n) n)
+                     slen2 (tz-cp-seg-len
+                             (list (car (nth k2 verts)) (cadr (nth k2 verts)))
+                             (list (car (nth j verts)) (cadr (nth j verts)))))
+               (if (and (>= (+ slen slen2) 30.0) (<= (+ slen slen2) 44.0))
+                 (setq bwd-door-j k2  bwd-door-k k))
+               (setq i 99)))  ;; stop either way — non-tiny
+            ;; Tiny segment (< 10") — keep walking
+            ((< slen 10.0)
+             (setq i (1+ i)))
+            ;; Anything else — stop
+            (T (setq i 99))))
+
+        (princ (strcat "\n[DBG]   fwd-door=" (if fwd-door-j (strcat (itoa fwd-door-j) "->" (itoa fwd-door-k)) "nil")
+                       "  bwd-door=" (if bwd-door-j (strcat (itoa bwd-door-j) "->" (itoa bwd-door-k)) "nil")))
+
+        (cond
+          ;; ── Only one direction found a door → use it ──
+          ((and fwd-door-j (null bwd-door-j))
+           (setq best-j fwd-door-j  best-k fwd-door-k))
+          ((and bwd-door-j (null fwd-door-j))
+           (setq best-j bwd-door-j  best-k bwd-door-k))
+
+          ;; ── Both directions found doors → trial-remove forward, validate ──
+          ((and fwd-door-j bwd-door-j)
+           (progn
+             (princ "\n[DBG]   both dirs found doors — trial forward first")
+             (setq saved-verts verts)  ;; save for undo
+
+             ;; Build forward removal set: arc to fwd-door-j (inside end)
+             (setq inside-end fwd-door-j)
+             (if (= inside-end arc-idx)
+               (setq inside-end fwd-door-k))
+             (setq fwd-dist (rem (+ (- inside-end arc-idx) n) n)
+                   bwd-dist (rem (+ (- arc-idx inside-end) n) n))
+             (setq to-remove '())
+             (if (<= fwd-dist bwd-dist)
+               (progn (setq p arc-idx)
+                      (repeat (1+ fwd-dist)
+                        (setq to-remove (cons p to-remove))
+                        (setq p (rem (1+ p) n))))
+               (progn (setq p arc-idx)
+                      (repeat (1+ bwd-dist)
+                        (setq to-remove (cons p to-remove))
+                        (setq p (rem (+ (1- p) n) n)))))
+
+             ;; Trial remove
+             (setq trial-verts '()  k 0)
+             (repeat n
+               (if (not (member k to-remove))
+                 (setq trial-verts (append trial-verts (list (nth k verts)))))
+               (setq k (1+ k)))
+
+             ;; Check minimum angle at all junction vertices in trial result
+             (setq nn (length trial-verts)  min-ang 180.0  k 0)
+             (repeat nn
+               (setq idx-a (rem (+ (1- k) nn) nn)
+                     idx-b k
+                     idx-c (rem (1+ k) nn))
+               (setq va (list (car (nth idx-a trial-verts)) (cadr (nth idx-a trial-verts)))
+                     vb (list (car (nth idx-b trial-verts)) (cadr (nth idx-b trial-verts)))
+                     vc (list (car (nth idx-c trial-verts)) (cadr (nth idx-c trial-verts))))
+               (setq ang (tz-cp-angle va vb vc))
+               (if (< ang min-ang) (setq min-ang ang))
+               (setq k (1+ k)))
+
+             (princ (strcat "\n[DBG]   trial-fwd min-angle=" (rtos min-ang 2 1) "°"))
+
+             (if (>= min-ang 45.0)
+               ;; Forward trial is good
+               (setq best-j fwd-door-j  best-k fwd-door-k)
+               ;; Forward created a spike — use backward instead
+               (progn
+                 (princ "\n[DBG]   fwd created spike, using bwd instead")
+                 (setq verts saved-verts  best-j bwd-door-j  best-k bwd-door-k)))))
+
+          ;; ── Neither direction found a door ──
+          (T (setq best-j nil)))
 
         (if best-j
           (progn
-            (princ (strcat "\n[DBG]   door seg " (itoa best-j) "->" (itoa best-k)
-                           " dist=" (rtos best-dist 2 2) "\""))
+            (princ (strcat "\n[DBG]   door seg " (itoa best-j) "->" (itoa best-k)))
 
-            ;; Which end of door segment is closer to arc? That's the inside end.
+            ;; Which end of door segment is closer to arc (polygon distance)?
             (setq fwd-dist (rem (+ (- best-j arc-idx) n) n)
                   bwd-dist (rem (+ (- arc-idx best-j) n) n))
             (if (> fwd-dist bwd-dist)
               (setq fwd-dist bwd-dist))
-            ;; fwd-dist is now min-dist to best-j
             (setq d fwd-dist)
             (setq fwd-dist (rem (+ (- best-k arc-idx) n) n)
                   bwd-dist (rem (+ (- arc-idx best-k) n) n))
             (if (> fwd-dist bwd-dist)
               (setq fwd-dist bwd-dist))
-            ;; fwd-dist is now min-dist to best-k
             (if (<= d fwd-dist)
               (setq inside-end best-j)
               (setq inside-end best-k))
+
+            ;; If inside-end == arc-idx (door abuts arc), use the other endpoint
+            (if (= inside-end arc-idx)
+              (if (= inside-end best-j)
+                (setq inside-end best-k)
+                (setq inside-end best-j)))
 
             ;; Shorter polygon path from arc-idx to inside-end
             (setq fwd-dist (rem (+ (- inside-end arc-idx) n) n)
@@ -485,13 +614,11 @@
             ;; Build removal list along shorter path
             (setq to-remove '())
             (if (<= fwd-dist bwd-dist)
-              ;; Forward: arc-idx, arc-idx+1, ..., inside-end
               (progn
                 (setq p arc-idx)
                 (repeat (1+ fwd-dist)
                   (setq to-remove (cons p to-remove))
                   (setq p (rem (1+ p) n))))
-              ;; Backward: arc-idx, arc-idx-1, ..., inside-end
               (progn
                 (setq p arc-idx)
                 (repeat (1+ bwd-dist)
@@ -502,7 +629,7 @@
                            " (arc=" (itoa arc-idx)
                            " inside=" (itoa inside-end) ")"))
 
-            ;; Remove those vertices
+            ;; Remove those vertices (arc + notch gone together)
             (setq new-verts '()  k 0)
             (repeat n
               (if (not (member k to-remove))
@@ -510,11 +637,10 @@
               (setq k (1+ k)))
             (setq verts new-verts  found-door T)
             (princ (strcat "\n[DBG]   verts after: " (itoa (length verts)))))
-          ;; No door segment found — dump nearby segments for diagnosis
-          ;; IMPORTANT: still set found-door=T so loop continues to next arc
+          ;; No door found in either direction — skip this arc
           (progn
             (princ (strcat "\n[DBG]   NO MATCH arc " (itoa arc-idx)
-                           " — nearby segments:"))
+                           " — skipping (nearby segs):"))
             (setq j 0)
             (repeat n
               (setq k (rem (1+ j) n)
@@ -530,6 +656,7 @@
                                " len=" (rtos slen 2 2) "\""
                                " dist=" (rtos d 2 2) "\"")))
               (setq j (1+ j)))
+            (setq skipped-arcs (cons arc-key skipped-arcs))
             (setq found-door T))))))
   (princ (strcat "\n[DBG] door-collapse done: " (itoa (length verts)) " verts remaining"))
 
