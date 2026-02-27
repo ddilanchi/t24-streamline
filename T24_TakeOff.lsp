@@ -377,13 +377,50 @@
   (sqrt (+ (expt (- (car v2) (car v1)) 2)
            (expt (- (cadr v2) (cadr v1)) 2))))
 
-(defun tz-clean-pline (ent / obj verts n i j bulge slen
+(defun tz-clean-pline (ent / obj verts n i j k p bulge slen
                            arc-list door-list used-arcs
                            ai av dj dmid dist best-arc best-dist
-                           lo hi to-remove new-verts)
+                           lo hi to-remove new-verts
+                           spike-found d-direct d-path)
   (setq obj   (vlax-ename->vla-object ent)
         verts (tz-pline-verts obj)
         n     (length verts))
+
+  ;; Step 0: Remove spikes — BOUNDARY sometimes bridges to inner closed shapes
+  ;; (room-number rectangles, block borders) creating a there-and-back spur.
+  ;; Signature: two polygon vertices Vi and Vj are close together (< 24") but
+  ;; the path between them detours far away (path length >= 3x direct AND >= 36").
+  ;; Runs repeatedly until no more spikes remain.
+  (setq spike-found T)
+  (while spike-found
+    (setq spike-found nil  n (length verts)  i 0)
+    (while (and (not spike-found) (< i (- n 2)))
+      (setq j (+ i 2))
+      (while (and (not spike-found) (< j n))
+        ;; Compute direct distance between Vi and Vj
+        (setq d-direct (tz-cp-seg-len
+                         (list (car (nth i verts)) (cadr (nth i verts)))
+                         (list (car (nth j verts)) (cadr (nth j verts)))))
+        ;; Compute path length from Vi to Vj along the polygon
+        (setq d-path 0.0  p i)
+        (while (< p (1- j))
+          (setq d-path (+ d-path (tz-cp-seg-len
+                                   (list (car (nth p      verts)) (cadr (nth p      verts)))
+                                   (list (car (nth (1+ p) verts)) (cadr (nth (1+ p) verts))))))
+          (setq p (1+ p)))
+        (if (and (< d-direct 24.0)              ;; bracket points close together
+                 (> d-path (* 3.0 d-direct))    ;; path is 3x+ longer than direct
+                 (> d-path 36.0))               ;; spike is at least 36" in length
+          (progn
+            ;; Remove vertices i+1 through j-1 (the spike body)
+            (setq new-verts '()  k 0)
+            (repeat n
+              (if (or (<= k i) (>= k j))
+                (setq new-verts (append new-verts (list (nth k verts)))))
+              (setq k (1+ k)))
+            (setq verts new-verts  spike-found T))
+          (setq j (1+ j))))
+      (if (not spike-found) (setq i (1+ i)))))
 
   ;; Step 1: Collect arc vertex positions and door-width segments (before flattening)
   ;;   arc-list  — each entry: (index x y)
