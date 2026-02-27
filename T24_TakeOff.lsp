@@ -360,11 +360,11 @@
   (sqrt (+ (expt (- (car v2) (car v1)) 2)
            (expt (- (cadr v2) (cadr v1)) 2))))
 
-(defun tz-clean-pline (ent / obj verts n i j k p bulge slen
-                           arc-list door-list used-arcs
-                           ai av dj dmid dist best-arc best-dist
-                           count-da count-ad new-verts
-                           spike-found d-direct d-path)
+(defun tz-clean-pline (ent / obj verts n i k slen
+                           new-verts found-door arc-idx arc-pt
+                           best-j best-k best-dist mid-pt d
+                           inside-end fwd-dist bwd-dist to-remove
+                           spike-found d-direct d-path j p)
   (setq obj   (vlax-ename->vla-object ent)
         verts (tz-pline-verts obj)
         n     (length verts))
@@ -405,78 +405,136 @@
           (setq j (1+ j))))
       (if (not spike-found) (setq i (1+ i)))))
 
-  ;; Step 1: Collect arc vertex positions and door-width segments (before flattening)
-  ;;   arc-list  — each entry: (index x y)
-  ;;   door-list — each entry: (start-idx end-idx midx midy)
-  ;;   Door widths: 30-44" covers 2'6" through 3'8"
-  (setq arc-list '()  i 0)
-  (repeat n
-    (setq bulge (caddr (nth i verts)))
-    (if (and bulge (/= bulge 0.0))
-      (setq arc-list (cons (list i (car (nth i verts)) (cadr (nth i verts)))
-                           arc-list)))
-    (setq i (1+ i)))
 
-  (setq door-list '()  i 0)
-  (repeat n
-    (setq j    (rem (1+ i) n)
-          slen (tz-cp-seg-len
-                 (list (car (nth i verts)) (cadr (nth i verts)))
-                 (list (car (nth j verts)) (cadr (nth j verts)))))
-    (if (and (>= slen 34.0) (<= slen 38.0))
-      (setq door-list
-        (cons (list i j
-                (* 0.5 (+ (car (nth i verts)) (car (nth j verts))))
-                (* 0.5 (+ (cadr (nth i verts)) (cadr (nth j verts)))))
-              door-list)))
-    (setq i (1+ i)))
+  ;; Door-collapse: find first arc, search ALL segments for nearest 30-44"
+  ;; door panel (by midpoint-to-arc distance, max 72"), delete the shorter
+  ;; polygon path between them (the notch).  Re-scan after each removal.
+  (princ (strcat "\n[DBG] door-collapse start: " (itoa (length verts)) " verts"))
+  (setq found-door T)
+  (while found-door
+    (setq found-door nil  n (length verts))
 
-  ;; Flatten all arc segments to straight lines
-  (setq verts (mapcar '(lambda (v) (list (car v) (cadr v) 0.0)) verts))
+    ;; Find first arc vertex (non-zero bulge)
+    (setq arc-idx nil  i 0)
+    (while (and (null arc-idx) (< i n))
+      (if (and (caddr (nth i verts)) (/= (caddr (nth i verts)) 0.0))
+        (setq arc-idx i))
+      (setq i (1+ i)))
 
-  ;; Step 2: For each door segment find the nearest arc (geometric distance, max 72").
-  ;;         Delete vertices from door toward arc along the shorter polygon path.
-  ;;         Door vertex (dj) is removed first; arc vertex (ai) collapses last.
-  (setq used-arcs '())
-  (foreach door door-list
-    (setq n        (length verts)
-          dj       (car door)
-          dmid     (list (caddr door) (cadddr door))
-          best-arc nil
-          best-dist 72.0)          ;; 72" (6') max pairing radius
-    ;; Find nearest unused arc
-    (foreach arc arc-list
-      (if (not (member (car arc) used-arcs))
-        (progn
-          (setq dist (tz-cp-seg-len dmid (list (cadr arc) (caddr arc))))
-          (if (< dist best-dist)
-            (setq best-arc arc  best-dist dist)))))
-    (if best-arc
+    (if arc-idx
       (progn
-        (setq ai (car best-arc))
-        (setq used-arcs (cons ai used-arcs))
-        ;; Count vertices on each path: door->arc (forward from dj) vs arc->door (forward from ai)
-        (setq n        (length verts)
-              count-da (1+ (rem (+ (- ai dj) n) n))
-              count-ad (1+ (rem (+ (- dj ai) n) n)))
-        (if (<= count-da count-ad)
-          ;; Shorter path: door first, arc last — always remove at index dj
-          (repeat count-da
-            (setq new-verts '()  k 0  n (length verts))
-            (repeat n
-              (if (/= k dj)
-                (setq new-verts (append new-verts (list (nth k verts)))))
-              (setq k (1+ k)))
-            (setq verts new-verts))
-          ;; Shorter path goes arc side: always remove at index ai
-          (repeat count-ad
-            (setq new-verts '()  k 0  n (length verts))
-            (repeat n
-              (if (/= k ai)
-                (setq new-verts (append new-verts (list (nth k verts)))))
-              (setq k (1+ k)))
-            (setq verts new-verts))))))
+        (setq arc-pt (list (car (nth arc-idx verts))
+                           (cadr (nth arc-idx verts))))
+        (princ (strcat "\n[DBG]   arc at i=" (itoa arc-idx)
+                       " (" (rtos (car arc-pt) 2 2)
+                       "," (rtos (cadr arc-pt) 2 2) ")"
+                       " bulge=" (rtos (caddr (nth arc-idx verts)) 2 4)))
 
+        ;; Flatten this arc's bulge so segment lengths are accurate
+        (setq new-verts '()  k 0)
+        (repeat n
+          (if (= k arc-idx)
+            (setq new-verts (append new-verts
+                    (list (list (car arc-pt) (cadr arc-pt) 0.0))))
+            (setq new-verts (append new-verts (list (nth k verts)))))
+          (setq k (1+ k)))
+        (setq verts new-verts  n (length verts))
+
+        ;; Search ALL segments for nearest 30-44" door panel
+        (setq best-j nil  best-dist 72.0  j 0)
+        (repeat n
+          (setq k (rem (1+ j) n)
+                slen (tz-cp-seg-len
+                       (list (car (nth j verts)) (cadr (nth j verts)))
+                       (list (car (nth k verts)) (cadr (nth k verts)))))
+          (if (and (>= slen 30.0) (<= slen 44.0))
+            (progn
+              (setq mid-pt (list
+                     (* 0.5 (+ (car (nth j verts)) (car (nth k verts))))
+                     (* 0.5 (+ (cadr (nth j verts)) (cadr (nth k verts))))))
+              (setq d (tz-cp-seg-len arc-pt mid-pt))
+              (if (< d best-dist)
+                (setq best-j j  best-k (rem (1+ j) n)  best-dist d))))
+          (setq j (1+ j)))
+
+        (if best-j
+          (progn
+            (princ (strcat "\n[DBG]   door seg " (itoa best-j) "->" (itoa best-k)
+                           " dist=" (rtos best-dist 2 2) "\""))
+
+            ;; Which end of door segment is closer to arc? That's the inside end.
+            (setq fwd-dist (rem (+ (- best-j arc-idx) n) n)
+                  bwd-dist (rem (+ (- arc-idx best-j) n) n))
+            (if (> fwd-dist bwd-dist)
+              (setq fwd-dist bwd-dist))
+            ;; fwd-dist is now min-dist to best-j
+            (setq d fwd-dist)
+            (setq fwd-dist (rem (+ (- best-k arc-idx) n) n)
+                  bwd-dist (rem (+ (- arc-idx best-k) n) n))
+            (if (> fwd-dist bwd-dist)
+              (setq fwd-dist bwd-dist))
+            ;; fwd-dist is now min-dist to best-k
+            (if (<= d fwd-dist)
+              (setq inside-end best-j)
+              (setq inside-end best-k))
+
+            ;; Shorter polygon path from arc-idx to inside-end
+            (setq fwd-dist (rem (+ (- inside-end arc-idx) n) n)
+                  bwd-dist (rem (+ (- arc-idx inside-end) n) n))
+
+            ;; Build removal list along shorter path
+            (setq to-remove '())
+            (if (<= fwd-dist bwd-dist)
+              ;; Forward: arc-idx, arc-idx+1, ..., inside-end
+              (progn
+                (setq p arc-idx)
+                (repeat (1+ fwd-dist)
+                  (setq to-remove (cons p to-remove))
+                  (setq p (rem (1+ p) n))))
+              ;; Backward: arc-idx, arc-idx-1, ..., inside-end
+              (progn
+                (setq p arc-idx)
+                (repeat (1+ bwd-dist)
+                  (setq to-remove (cons p to-remove))
+                  (setq p (rem (+ (1- p) n) n)))))
+
+            (princ (strcat "\n[DBG]   removing " (itoa (length to-remove)) " verts"
+                           " (arc=" (itoa arc-idx)
+                           " inside=" (itoa inside-end) ")"))
+
+            ;; Remove those vertices
+            (setq new-verts '()  k 0)
+            (repeat n
+              (if (not (member k to-remove))
+                (setq new-verts (append new-verts (list (nth k verts)))))
+              (setq k (1+ k)))
+            (setq verts new-verts  found-door T)
+            (princ (strcat "\n[DBG]   verts after: " (itoa (length verts)))))
+          ;; No door segment found — dump nearby segments for diagnosis
+          ;; IMPORTANT: still set found-door=T so loop continues to next arc
+          (progn
+            (princ (strcat "\n[DBG]   NO MATCH arc " (itoa arc-idx)
+                           " — nearby segments:"))
+            (setq j 0)
+            (repeat n
+              (setq k (rem (1+ j) n)
+                    slen (tz-cp-seg-len
+                           (list (car (nth j verts)) (cadr (nth j verts)))
+                           (list (car (nth k verts)) (cadr (nth k verts))))
+                    mid-pt (list
+                      (* 0.5 (+ (car (nth j verts)) (car (nth k verts))))
+                      (* 0.5 (+ (cadr (nth j verts)) (cadr (nth k verts)))))
+                    d (tz-cp-seg-len arc-pt mid-pt))
+              (if (< d 120.0)
+                (princ (strcat "\n[DBG]     seg " (itoa j) "->" (itoa k)
+                               " len=" (rtos slen 2 2) "\""
+                               " dist=" (rtos d 2 2) "\"")))
+              (setq j (1+ j)))
+            (setq found-door T))))))
+  (princ (strcat "\n[DBG] door-collapse done: " (itoa (length verts)) " verts remaining"))
+
+  ;; Flatten any remaining arc segments (non-door arcs: column caps, round corners)
+  (setq verts (mapcar '(lambda (v) (list (car v) (cadr v) 0.0)) verts))
 
 
   (if (>= (length verts) 3)
