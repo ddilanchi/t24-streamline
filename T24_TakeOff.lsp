@@ -377,57 +377,72 @@
   (sqrt (+ (expt (- (car v2) (car v1)) 2)
            (expt (- (cadr v2) (cadr v1)) 2))))
 
-(defun tz-clean-pline (ent / obj verts n i bulge arc-indices
-                           ai j slen door-j dir lo hi
-                           to-remove new-verts)
+(defun tz-clean-pline (ent / obj verts n i j bulge slen
+                           arc-list door-list used-arcs
+                           ai av dj dmid dist best-arc best-dist
+                           lo hi to-remove new-verts)
   (setq obj   (vlax-ename->vla-object ent)
         verts (tz-pline-verts obj)
         n     (length verts))
 
-  ;; Step 1: Find arc vertices and flatten all bulges
-  (setq arc-indices '()  i 0)
+  ;; Step 1: Collect arc vertex positions and door-width segments (before flattening)
+  ;;   arc-list  — each entry: (index x y)
+  ;;   door-list — each entry: (start-idx end-idx midx midy)
+  ;;   Door widths: 30-44" covers 2'6" through 3'8"
+  (setq arc-list '()  i 0)
   (repeat n
     (setq bulge (caddr (nth i verts)))
     (if (and bulge (/= bulge 0.0))
-      (setq arc-indices (cons i arc-indices)))
+      (setq arc-list (cons (list i (car (nth i verts)) (cadr (nth i verts)))
+                           arc-list)))
     (setq i (1+ i)))
-  ;; Flatten all to straight
+
+  (setq door-list '()  i 0)
+  (repeat n
+    (setq j    (rem (1+ i) n)
+          slen (tz-cp-seg-len
+                 (list (car (nth i verts)) (cadr (nth i verts)))
+                 (list (car (nth j verts)) (cadr (nth j verts)))))
+    (if (and (>= slen 30.0) (<= slen 44.0))
+      (setq door-list
+        (cons (list i j
+                (* 0.5 (+ (car (nth i verts)) (car (nth j verts))))
+                (* 0.5 (+ (cadr (nth i verts)) (cadr (nth j verts)))))
+              door-list)))
+    (setq i (1+ i)))
+
+  ;; Flatten all arc segments to straight lines
   (setq verts (mapcar '(lambda (v) (list (car v) (cadr v) 0.0)) verts))
 
-  ;; Step 2: For each arc, search nearby for a door-width segment (~34-44")
-  ;;         then delete everything between arc and that segment
-  (setq to-remove '())
-  (foreach ai arc-indices
-    (setq door-j nil)
-    ;; Search up to 8 vertices in each direction for a ~3' or 3'6" segment
-    ;; Door widths: 30" (2'6"), 32", 36" (3'), 42" (3'6") — range 28-44"
-    (foreach dir '(1 -1)
-      (if (null door-j)
+  ;; Step 2: For each door segment find the nearest arc (geometric distance, max 72").
+  ;;         Remove the shorter vertex path between them — this collapses the door notch.
+  (setq to-remove '()  used-arcs '())
+  (foreach door door-list
+    (setq dj        (car door)
+          dmid      (list (caddr door) (cadddr door))
+          best-arc  nil
+          best-dist 72.0)          ;; 72" (6') max pairing radius
+    ;; Find nearest unused arc
+    (foreach arc arc-list
+      (if (not (member (car arc) used-arcs))
         (progn
-          (setq j 1)
-          (while (and (null door-j) (<= j 8))
-            (setq slen (tz-cp-seg-len
-                    (nth (rem (+ n ai (* dir j)) n) verts)
-                    (nth (rem (+ n ai (* dir (1+ j))) n) verts)))
-            (if (and (>= slen 28.0) (<= slen 44.0))
-              (setq door-j (rem (+ n ai (* dir j)) n)))
-            (setq j (1+ j))))))
-
-    ;; Mark vertices between arc and door segment for removal
-    (if door-j
+          (setq dist (tz-cp-seg-len dmid (list (cadr arc) (caddr arc))))
+          (if (< dist best-dist)
+            (setq best-arc arc  best-dist dist)))))
+    (if best-arc
       (progn
-        ;; Figure out the short path from arc to door-j
-        ;; Forward distance (arc → door-j going forward around polygon)
-        (setq lo (min ai door-j)  hi (max ai door-j))
-        ;; Pick the shorter span
+        (setq ai (car best-arc))
+        (setq used-arcs (cons ai used-arcs))
+        ;; Remove the shorter polygon path from ai to dj (both inclusive)
+        (setq lo (min ai dj)  hi (max ai dj))
         (if (<= (- hi lo) (- (+ n lo) hi))
-          ;; Short path is lo..hi — remove lo through hi
+          ;; Direct span lo..hi is shorter
           (progn
             (setq i lo)
             (repeat (1+ (- hi lo))
               (setq to-remove (cons i to-remove))
               (setq i (1+ i))))
-          ;; Short path wraps around — remove hi..n + 0..lo
+          ;; Wrap-around span is shorter: hi..n-1 then 0..lo
           (progn
             (setq i hi)
             (repeat (- n hi)
@@ -436,9 +451,7 @@
             (setq i 0)
             (repeat (1+ lo)
               (setq to-remove (cons i to-remove))
-              (setq i (1+ i))))))
-      ;; No door segment found — just remove the arc vertex
-      (setq to-remove (cons ai to-remove))))
+              (setq i (1+ i))))))))
 
   (if to-remove
     (progn
@@ -722,8 +735,8 @@
             (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
               (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 edata) edata)))
 
-            ;; Clean: flatten arcs, remove stubs, remove acute/obtuse vertices
-            ;; (tz-clean-pline ent)  ;; door-removal disabled for now
+            ;; Clean: flatten arcs, collapse door notches
+            (tz-clean-pline ent)
 
             ;; Compute area and centroid
             (setq pts      (tz-get-pts ent)
