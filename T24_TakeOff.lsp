@@ -518,6 +518,7 @@
     (setq txt-ent   (car sel)
           txt-pt    (cadr sel)      ; WCS click point — seed for BOUNDARY
           txt-edata (entget txt-ent)
+          txt-lyr   nil             ; reset each iteration — prevents bleed from prior room
           txt-layers '())
 
     ;; ── Determine zone name: from text entity or typed manually ─────────
@@ -526,9 +527,16 @@
       (progn
         (setq txt-str (vl-string-trim " " (cdr (assoc 1 txt-edata)))
               txt-lyr (cdr (assoc 8 txt-edata)))
-        (if txt-lyr (setq txt-layers (list txt-lyr)))
-        (if (= txt-str "") (setq txt-str nil))
-        (setq zone-name txt-str))
+        (if (and txt-lyr (wcmatch txt-lyr "T24-*"))
+          ;; Clicked on one of our own labels/markers — warn and skip
+          (progn
+            (princ "\n[T24] Clicked a T24 entity — click the room name text instead.")
+            (setq zone-name nil))
+          ;; Valid drawing text
+          (progn
+            (if txt-lyr (setq txt-layers (list txt-lyr)))
+            (if (= txt-str "") (setq txt-str nil))
+            (setq zone-name txt-str))))
       ;; Missed text — prompt to type a name
       (progn
         (setq zone-name
@@ -701,11 +709,7 @@
         (if patch-lines
           (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
 
-        ;; Restore frozen layers immediately
-        (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
-        (if froze (tz-thaw-layers froze))
-        (setq froze nil  txt-lyrs-frozen nil)
-
+        ;; Frozen layers stay frozen across rooms — thawed at end of session below
         (setvar "CMDDIA"  cd)
         (setvar "CMDECHO" ce)
         (setvar "CLAYER"  cl)
@@ -768,6 +772,9 @@
           (princ "\n[T24] No boundary created, skipping this zone."))
             ))) ; end if ent, progn, if zone-name, while
 
+  ;; Thaw any layers frozen during the session (e.g. txt-lyrs-frozen, froze)
+  (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
+  (if froze (tz-thaw-layers froze))
   (princ "\n[T24] Done tagging zones.")
   (princ))
 
