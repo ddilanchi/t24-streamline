@@ -93,11 +93,8 @@ Step 5 — Rebuild polyline from remaining vertices
 | File | Path |
 |------|------|
 | Primary LSP | `D:\Documents\T24 Streamline Project\T24_TakeOff.lsp` |
-| Sync copy | `D:\Desktop\Misc\Time Saving Scripts\AutoCAD TakeOff Wizard\T24_TakeOff.lsp` |
 | Python scripts | `D:\Documents\T24 Streamline Project\` |
 | Git remote | github.com/ddilanchi/t24-streamline |
-
-**Always sync both LSP copies after edits.**
 
 ---
 
@@ -106,5 +103,5 @@ Step 5 — Rebuild polyline from remaining vertices
 - **NEVER freeze, thaw, or modify AutoCAD layers** unless explicitly asked.
   A-AREA-IDEN and similar AIA layers contain BOTH text labels AND room boundary
   polylines. Freezing them breaks `_-BOUNDARY`.
-- Always check paren balance before syncing the LSP.
+- Always check paren balance before committing the LSP.
 - Commit and push after each working milestone.

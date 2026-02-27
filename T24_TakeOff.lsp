@@ -380,7 +380,7 @@
 (defun tz-clean-pline (ent / obj verts n i j k p bulge slen
                            arc-list door-list used-arcs
                            ai av dj dmid dist best-arc best-dist
-                           lo hi to-remove new-verts
+                           count-da count-ad new-verts
                            spike-found d-direct d-path)
   (setq obj   (vlax-ename->vla-object ent)
         verts (tz-pline-verts obj)
@@ -440,7 +440,7 @@
           slen (tz-cp-seg-len
                  (list (car (nth i verts)) (cadr (nth i verts)))
                  (list (car (nth j verts)) (cadr (nth j verts)))))
-    (if (and (>= slen 30.0) (<= slen 44.0))
+    (if (and (>= slen 34.0) (<= slen 38.0))
       (setq door-list
         (cons (list i j
                 (* 0.5 (+ (car (nth i verts)) (car (nth j verts))))
@@ -452,12 +452,14 @@
   (setq verts (mapcar '(lambda (v) (list (car v) (cadr v) 0.0)) verts))
 
   ;; Step 2: For each door segment find the nearest arc (geometric distance, max 72").
-  ;;         Remove the shorter vertex path between them — this collapses the door notch.
-  (setq to-remove '()  used-arcs '())
+  ;;         Delete vertices from door toward arc along the shorter polygon path.
+  ;;         Door vertex (dj) is removed first; arc vertex (ai) collapses last.
+  (setq used-arcs '())
   (foreach door door-list
-    (setq dj        (car door)
-          dmid      (list (caddr door) (cadddr door))
-          best-arc  nil
+    (setq n        (length verts)
+          dj       (car door)
+          dmid     (list (caddr door) (cadddr door))
+          best-arc nil
           best-dist 72.0)          ;; 72" (6') max pairing radius
     ;; Find nearest unused arc
     (foreach arc arc-list
@@ -470,34 +472,29 @@
       (progn
         (setq ai (car best-arc))
         (setq used-arcs (cons ai used-arcs))
-        ;; Remove the shorter polygon path from ai to dj (both inclusive)
-        (setq lo (min ai dj)  hi (max ai dj))
-        (if (<= (- hi lo) (- (+ n lo) hi))
-          ;; Direct span lo..hi is shorter
-          (progn
-            (setq i lo)
-            (repeat (1+ (- hi lo))
-              (setq to-remove (cons i to-remove))
-              (setq i (1+ i))))
-          ;; Wrap-around span is shorter: hi..n-1 then 0..lo
-          (progn
-            (setq i hi)
-            (repeat (- n hi)
-              (setq to-remove (cons i to-remove))
-              (setq i (1+ i)))
-            (setq i 0)
-            (repeat (1+ lo)
-              (setq to-remove (cons i to-remove))
-              (setq i (1+ i))))))))
+        ;; Count vertices on each path: door->arc (forward from dj) vs arc->door (forward from ai)
+        (setq n        (length verts)
+              count-da (1+ (rem (+ (- ai dj) n) n))
+              count-ad (1+ (rem (+ (- dj ai) n) n)))
+        (if (<= count-da count-ad)
+          ;; Shorter path: door first, arc last — always remove at index dj
+          (repeat count-da
+            (setq new-verts '()  k 0  n (length verts))
+            (repeat n
+              (if (/= k dj)
+                (setq new-verts (append new-verts (list (nth k verts)))))
+              (setq k (1+ k)))
+            (setq verts new-verts))
+          ;; Shorter path goes arc side: always remove at index ai
+          (repeat count-ad
+            (setq new-verts '()  k 0  n (length verts))
+            (repeat n
+              (if (/= k ai)
+                (setq new-verts (append new-verts (list (nth k verts)))))
+              (setq k (1+ k)))
+            (setq verts new-verts))))))
 
-  (if to-remove
-    (progn
-      (setq new-verts '()  i 0)
-      (repeat n
-        (if (not (member i to-remove))
-          (setq new-verts (append new-verts (list (nth i verts)))))
-        (setq i (1+ i)))
-      (setq verts new-verts)))
+
 
   (if (>= (length verts) 3)
     (tz-set-pline-verts obj verts)
@@ -695,8 +692,9 @@
         (setvar "CMDDIA"  0)
         (setvar "CLAYER"  *TZ-LYR-ZONE*)
 
-        ;; Text layers NOT frozen — A-AREA-IDEN and similar layers often contain
-        ;; room boundary polylines alongside text; freezing them breaks boundary detection
+        ;; Freeze the clicked text layer before BOUNDARY so text geometry doesn't
+        ;; interfere with boundary detection. Thawed per-room after cleanup below.
+        (if txt-lyr (command "_.LAYER" "_F" txt-lyr ""))
 
         ;; ── Run boundary (tz-hatch-boundary manages HPGAPTOL internally) ──
         (setq ent (tz-hatch-boundary txt-pt))
@@ -746,7 +744,7 @@
         (if patch-lines
           (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
 
-        ;; Frozen layers stay frozen across rooms — thawed at end of session below
+        ;; Text layer thawed per-room after tz-clean-pline below
         (setvar "CMDDIA"  cd)
         (setvar "CMDECHO" ce)
         (setvar "CLAYER"  cl)
@@ -807,7 +805,12 @@
             (princ (strcat "\n[T24] Tagged: \"" zone-name
                            "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor))))
           (princ "\n[T24] No boundary created, skipping this zone."))
-            ))) ; end if ent, progn, if zone-name, while
+        ;; Thaw the text layer per-room (whether boundary succeeded or not)
+        (if txt-lyr
+          (progn (setvar "CMDECHO" 0)
+                 (command "_.LAYER" "_T" txt-lyr "")
+                 (setvar "CMDECHO" ce)))
+            ))) ; end progn(zone-name), if zone-name, while
 
   ;; Thaw any layers frozen during the session (e.g. txt-lyrs-frozen, froze)
   (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
