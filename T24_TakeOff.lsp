@@ -614,139 +614,146 @@
   ;; ── Main room loop ────────────────────────────────────────────────────────
   (while
     (progn
-      (setq sel (nentsel "\n[T24] Click room name text (Enter to finish): "))
-      (not (null sel)))
-
-    ;; nentsel returns (ent pick-pt matrix parent-ent...)
-    (setq txt-ent   (car sel)
-          txt-pt    (cadr sel)      ; WCS click point — seed for BOUNDARY
-          txt-edata (entget txt-ent)
-          txt-lyr   nil             ; reset each iteration — prevents bleed from prior room
-          txt-layers '())
-
-    ;; ── Determine zone name: from text entity or typed manually ─────────
-    (if (member (cdr (assoc 0 txt-edata)) '("TEXT" "MTEXT"))
-      ;; Clicked on text — read it
-      (progn
-        (setq txt-str (vl-string-trim " " (cdr (assoc 1 txt-edata)))
-              txt-lyr (cdr (assoc 8 txt-edata)))
-        (if (and txt-lyr (wcmatch txt-lyr "T24-*"))
-          ;; Clicked on one of our own labels/markers — warn and skip
-          (progn
-            (princ "\n[T24] Clicked a T24 entity — click the room name text instead.")
-            (setq zone-name nil))
-          ;; Valid drawing text
-          (progn
-            (if txt-lyr (setq txt-layers (list txt-lyr)))
-            (if (= txt-str "") (setq txt-str nil))
-            (setq zone-name txt-str))))
-      ;; Missed text — prompt to type a name
-      (progn
-        (setq zone-name
-          (getstring T "\n[T24] No text found. Type zone name: "))
-        (if (= zone-name "") (setq zone-name nil))))
+      (setq sel (nentsel "\n[T24] Click room name text (Enter to finish): ")
+            zone-name nil  txt-lyr nil  txt-layers '()  txt-edata nil)
+      (cond
+        ;; nentsel hit an entity
+        (sel
+         (setq txt-ent   (car sel)
+               txt-pt    (cadr sel)
+               txt-edata (entget txt-ent))
+         (if (member (cdr (assoc 0 txt-edata)) '("TEXT" "MTEXT"))
+           (progn
+             (setq txt-str (vl-string-trim " " (cdr (assoc 1 txt-edata)))
+                   txt-lyr (cdr (assoc 8 txt-edata)))
+             (if (and txt-lyr (wcmatch txt-lyr "T24-*"))
+               (progn
+                 (princ "\n[T24] Clicked a T24 entity — click the room name text instead.")
+                 (setq zone-name nil))
+               (progn
+                 (if txt-lyr (setq txt-layers (list txt-lyr)))
+                 (if (= txt-str "") (setq txt-str nil))
+                 (setq zone-name txt-str))))
+           (progn
+             (setq zone-name
+               (getstring T "\n[T24] No text found. Type zone name: "))
+             (if (= zone-name "") (setq zone-name nil))))
+         T)
+        ;; nentsel missed — offer manual point + typed name
+        (T
+         (setq txt-pt (getpoint "\n[T24] No entity hit. Click inside the room (Enter to finish): "))
+         (if txt-pt
+           (progn
+             (setq zone-name
+               (getstring T "\n[T24] Type zone name: "))
+             (if (= zone-name "") (setq zone-name nil))
+             T)
+           nil))))
 
     (if (null zone-name)
       (princ "\n[T24] No name entered, skipping.")
 
       (progn
         ;; ── Auto-find nearby text to build full name ────────────────────
-        ;; Get clicked text position in its coordinate space
-        (setq txt-ins (cdr (assoc 10 txt-edata))
-              nearby-texts '())
-        ;; Prefer alignment point (group 11) if set
-        (if (and (assoc 11 txt-edata)
-                 (not (equal (cdr (assoc 11 txt-edata)) '(0.0 0.0 0.0) 0.01)))
-          (setq txt-ins (cdr (assoc 11 txt-edata))))
-
-        (if (>= (length sel) 4)
-          ;; ── Nested entity (xref/block) — walk the block definition ──
+        ;; Only search for nearby room number when we clicked an actual entity
+        (if txt-edata
           (progn
-            (setq blk-ref  (car (cadddr sel))
-                  blk-name (cdr (assoc 2 (entget blk-ref)))
-                  blk-def  (tblobjname "BLOCK" blk-name))
-            (if blk-def
+            ;; Get clicked text position in its coordinate space
+            (setq txt-ins (cdr (assoc 10 txt-edata))
+                  nearby-texts '())
+            ;; Prefer alignment point (group 11) if set
+            (if (and (assoc 11 txt-edata)
+                     (not (equal (cdr (assoc 11 txt-edata)) '(0.0 0.0 0.0) 0.01)))
+              (setq txt-ins (cdr (assoc 11 txt-edata))))
+
+            (if (>= (length sel) 4)
+              ;; ── Nested entity (xref/block) — walk the block definition ──
               (progn
-                (setq near-ent (entnext blk-def))
-                (while near-ent
-                  (setq near-ed (entget near-ent))
-                  (cond
-                    ;; Direct TEXT/MTEXT in block
-                    ((and (member (cdr (assoc 0 near-ed)) '("TEXT" "MTEXT"))
-                          (not (eq near-ent txt-ent)))
-                     (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed))))
-                     (if (/= near-str "")
-                       (progn
-                         (setq near-pt (cdr (assoc 10 near-ed)))
-                         (if (and (assoc 11 near-ed)
-                                  (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
-                           (setq near-pt (cdr (assoc 11 near-ed))))
-                         (setq near-dist (distance txt-ins near-pt))
-                         (if (< near-dist 36.0)
-                           (setq nearby-texts
-                             (cons (list near-dist near-str) nearby-texts))))))
-                    ;; INSERT (sub-block) — check its ATTRIBs for text
-                    ((= (cdr (assoc 0 near-ed)) "INSERT")
-                     ;; ATTRIBs follow the INSERT as ATTRIB entities
-                     (if (= (cdr (assoc 66 near-ed)) 1)  ; has attribs
-                       (progn
-                         (setq sub-ent (entnext near-ent))
-                         (while (and sub-ent
-                                     (setq sub-ed (entget sub-ent))
-                                     (= (cdr (assoc 0 sub-ed)) "ATTRIB"))
-                           (setq near-str (vl-string-trim " " (cdr (assoc 1 sub-ed))))
-                           (if (/= near-str "")
-                             (progn
-                               (setq near-pt (cdr (assoc 10 sub-ed)))
-                               (if (and (assoc 11 sub-ed)
-                                        (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
-                                 (setq near-pt (cdr (assoc 11 sub-ed))))
-                               (setq near-dist (distance txt-ins near-pt))
-                               (if (< near-dist 36.0)
-                                 (setq nearby-texts
-                                   (cons (list near-dist near-str) nearby-texts)))))
-                           (setq sub-ent (entnext sub-ent)))))))
-                  (setq near-ent (entnext near-ent)))))))
+                (setq blk-ref  (car (cadddr sel))
+                      blk-name (cdr (assoc 2 (entget blk-ref)))
+                      blk-def  (tblobjname "BLOCK" blk-name))
+                (if blk-def
+                  (progn
+                    (setq near-ent (entnext blk-def))
+                    (while near-ent
+                      (setq near-ed (entget near-ent))
+                      (cond
+                        ;; Direct TEXT/MTEXT in block
+                        ((and (member (cdr (assoc 0 near-ed)) '("TEXT" "MTEXT"))
+                              (not (eq near-ent txt-ent)))
+                         (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed))))
+                         (if (/= near-str "")
+                           (progn
+                             (setq near-pt (cdr (assoc 10 near-ed)))
+                             (if (and (assoc 11 near-ed)
+                                      (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
+                               (setq near-pt (cdr (assoc 11 near-ed))))
+                             (setq near-dist (distance txt-ins near-pt))
+                             (if (< near-dist 36.0)
+                               (setq nearby-texts
+                                 (cons (list near-dist near-str) nearby-texts))))))
+                        ;; INSERT (sub-block) — check its ATTRIBs for text
+                        ((= (cdr (assoc 0 near-ed)) "INSERT")
+                         ;; ATTRIBs follow the INSERT as ATTRIB entities
+                         (if (= (cdr (assoc 66 near-ed)) 1)  ; has attribs
+                           (progn
+                             (setq sub-ent (entnext near-ent))
+                             (while (and sub-ent
+                                         (setq sub-ed (entget sub-ent))
+                                         (= (cdr (assoc 0 sub-ed)) "ATTRIB"))
+                               (setq near-str (vl-string-trim " " (cdr (assoc 1 sub-ed))))
+                               (if (/= near-str "")
+                                 (progn
+                                   (setq near-pt (cdr (assoc 10 sub-ed)))
+                                   (if (and (assoc 11 sub-ed)
+                                            (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
+                                     (setq near-pt (cdr (assoc 11 sub-ed))))
+                                   (setq near-dist (distance txt-ins near-pt))
+                                   (if (< near-dist 36.0)
+                                     (setq nearby-texts
+                                       (cons (list near-dist near-str) nearby-texts)))))
+                               (setq sub-ent (entnext sub-ent)))))))
+                      (setq near-ent (entnext near-ent)))))))
 
-          ;; ── Not nested — spatial ssget within 18" box only ──
-          (if txt-lyr
-            (progn
-              (setq ss-near (ssget "C"
-                              (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
-                              (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
-                              (list (cons 8 txt-lyr)
-                                    '(-4 . "<OR")
-                                      '(0 . "TEXT")
-                                      '(0 . "MTEXT")
-                                    '(-4 . "OR>"))))
-              (if ss-near
+              ;; ── Not nested — spatial ssget within 36" box only ──
+              (if txt-lyr
                 (progn
-                  (setq j 0)
-                  (repeat (sslength ss-near)
-                    (setq near-ent (ssname ss-near j)
-                          near-ed  (entget near-ent))
-                    (if (not (equal near-ent txt-ent))
-                      (progn
-                        (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed))))
-                        (if (and (/= near-str "") (/= near-str zone-name))
+                  (setq ss-near (ssget "C"
+                                  (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
+                                  (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
+                                  (list (cons 8 txt-lyr)
+                                        '(-4 . "<OR")
+                                          '(0 . "TEXT")
+                                          '(0 . "MTEXT")
+                                        '(-4 . "OR>"))))
+                  (if ss-near
+                    (progn
+                      (setq j 0)
+                      (repeat (sslength ss-near)
+                        (setq near-ent (ssname ss-near j)
+                              near-ed  (entget near-ent))
+                        (if (not (equal near-ent txt-ent))
                           (progn
-                            (setq near-pt (cdr (assoc 10 near-ed)))
-                            (if (and (assoc 11 near-ed)
-                                     (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
-                              (setq near-pt (cdr (assoc 11 near-ed))))
-                            (setq near-dist (distance txt-ins near-pt))
-                            (if (< near-dist 36.0)
-                              (setq nearby-texts
-                                (cons (list near-dist near-str) nearby-texts)))))))
-                    (setq j (1+ j)))))))
+                            (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed))))
+                            (if (and (/= near-str "") (/= near-str zone-name))
+                              (progn
+                                (setq near-pt (cdr (assoc 10 near-ed)))
+                                (if (and (assoc 11 near-ed)
+                                         (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
+                                  (setq near-pt (cdr (assoc 11 near-ed))))
+                                (setq near-dist (distance txt-ins near-pt))
+                                (if (< near-dist 36.0)
+                                  (setq nearby-texts
+                                    (cons (list near-dist near-str) nearby-texts)))))))
+                        (setq j (1+ j)))))))
 
-        ;; Sort by distance, append only the closest one
-        (if nearby-texts
-          (progn
-            (setq nearby-texts
-              (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
-            (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))
-            (princ (strcat "\n[T24]   Auto-appended: \"" (cadr (car nearby-texts)) "\""))))
+            ;; Sort by distance, append only the closest one
+            (if nearby-texts
+              (progn
+                (setq nearby-texts
+                  (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
+                (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))
+                (princ (strcat "\n[T24]   Auto-appended: \"" (cadr (car nearby-texts)) "\""))))))
         ;; Hard cap at 30 characters
         (if (> (strlen zone-name) 30)
           (setq zone-name (substr zone-name 1 30)))
