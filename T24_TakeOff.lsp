@@ -682,7 +682,7 @@
                                   (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                            (setq near-pt (cdr (assoc 11 near-ed))))
                          (setq near-dist (distance txt-ins near-pt))
-                         (if (< near-dist 18.0)
+                         (if (< near-dist 36.0)
                            (setq nearby-texts
                              (cons (list near-dist near-str) nearby-texts))))))
                     ;; INSERT (sub-block) — check its ATTRIBs for text
@@ -702,7 +702,7 @@
                                         (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
                                  (setq near-pt (cdr (assoc 11 sub-ed))))
                                (setq near-dist (distance txt-ins near-pt))
-                               (if (< near-dist 18.0)
+                               (if (< near-dist 36.0)
                                  (setq nearby-texts
                                    (cons (list near-dist near-str) nearby-texts)))))
                            (setq sub-ent (entnext sub-ent)))))))
@@ -712,8 +712,8 @@
           (if txt-lyr
             (progn
               (setq ss-near (ssget "C"
-                              (list (- (car txt-ins) 18.0) (- (cadr txt-ins) 18.0) 0.0)
-                              (list (+ (car txt-ins) 18.0) (+ (cadr txt-ins) 18.0) 0.0)
+                              (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
+                              (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
                               (list (cons 8 txt-lyr)
                                     '(-4 . "<OR")
                                       '(0 . "TEXT")
@@ -735,7 +735,7 @@
                                      (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                               (setq near-pt (cdr (assoc 11 near-ed))))
                             (setq near-dist (distance txt-ins near-pt))
-                            (if (< near-dist 18.0)
+                            (if (< near-dist 36.0)
                               (setq nearby-texts
                                 (cons (list near-dist near-str) nearby-texts)))))))
                     (setq j (1+ j)))))))
