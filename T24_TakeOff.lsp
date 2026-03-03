@@ -125,15 +125,17 @@
   (if grp (cdr (assoc *TZ-APP* (cdr grp))) nil))
 
 ;; Get the nth occurrence of a group-code value in an xdata list
-(defun tz-xd-nth (xd grp idx / count result)
-  (setq count -1  result nil)
+(defun tz-xd-nth (xd grp idx / matches val)
+  (setq matches '())
   (foreach item xd
-    (if (and (= (car item) grp) (null result))
-      (progn
-        (setq count (1+ count))
-        (if (= count idx) (setq result (cdr item))))))
-  ;; Safety guard: if result is boolean T (XDATA round-trip bug), treat as nil
-  (if (= result T) nil result))
+    (if (= (car item) grp)
+      (setq matches (append matches (list (cdr item))))))
+  (if (< idx (length matches))
+    (progn
+      (setq val (nth idx matches))
+      ;; Safety guard: if result is boolean T, treat as nil
+      (if (= val T) nil val))
+    nil))
 
 ;; Safe numeric xdata reader — guarantees a number, never T or nil
 (defun tz-xd-num (xd grp idx default / val)
@@ -356,6 +358,12 @@
   (setq i 0)
   (repeat n (vla-SetBulge obj i 0.0) (setq i (1+ i))))
 
+
+;; Euclidean distance between two 2D points
+(defun tz-cp-seg-len (p1 p2 / dx dy)
+  (setq dx (- (car p2) (car p1))
+        dy (- (cadr p2) (cadr p1)))
+  (sqrt (+ (* dx dx) (* dy dy))))
 
 ;; Door-collapse: delete door-notch vertices from a BOUNDARY polyline.
 ;; Walks both directions from each arc (door-swing) through tiny segments
@@ -1126,7 +1134,8 @@
               len-in    (sqrt (+ (* dx dx) (* dy dy)))
               len-ft    (/ len-in *TZ-UNIT-FT*)
               az        (tz-wall-azimuth edge-p1 edge-p2)
-              zone-id   (or (tz-zone-of-ent edge-ent) "Z-???"))))
+              zone-id   (tz-zone-of-ent edge-ent))))
+    (if (null zone-id) (setq zone-id "Z-???"))
 
     (setq area-sqft (* len-ft wall-ht))
 
@@ -1290,12 +1299,16 @@
                   area-sqft (/ (vlax-curve-getarea obj)
                                (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
                   cent      (tz-centroid pts)
-                  zid       (or (tz-xd-nth xd 1000 1) "Z-???")
-                  zname     (or (tz-xd-nth xd 1000 2) "")
+                  zid       (tz-xd-nth xd 1000 1)
+                  zname     (tz-xd-nth xd 1000 2)
                   ht        (tz-xd-num xd 1040 0 9.0)
                   fl        (tz-xd-num xd 1070 0 1)
-                  cond      (or (tz-xd-nth xd 1000 3) "Conditioned")
-                  occ       (or (tz-xd-nth xd 1000 4) "Residential"))
+                  cond      (tz-xd-nth xd 1000 3)
+                  occ       (tz-xd-nth xd 1000 4))
+            (if (null zid)   (setq zid "Z-???"))
+            (if (null zname) (setq zname ""))
+            (if (null cond)  (setq cond "Conditioned"))
+            (if (null occ)   (setq occ "Residential"))
             (if zone-started (write-line "    }," fp))
             (write-line "    {" fp)
             (write-line (strcat "      \"id\": "            (tz-jstr zid)                       ",") fp)
@@ -1327,10 +1340,13 @@
               xd  (tz-get-xdata ent))
         (if (and xd (equal (tz-xd-nth xd 1000 0) "WALL"))
           (progn
-            (setq wid   (or (tz-xd-nth xd 1000 1) "W-???")
-                  wtype (or (tz-xd-nth xd 1000 2) "Exterior Wall")
-                  wzid  (or (tz-xd-nth xd 1000 3) "Z-???")
-                  wht   (tz-xd-num xd 1040 0 9.0)
+            (setq wid   (tz-xd-nth xd 1000 1)
+                  wtype (tz-xd-nth xd 1000 2)
+                  wzid  (tz-xd-nth xd 1000 3))
+            (if (null wid)   (setq wid "W-???"))
+            (if (null wtype) (setq wtype "Exterior Wall"))
+            (if (null wzid)  (setq wzid "Z-???"))
+            (setq wht   (tz-xd-num xd 1040 0 9.0)
                   wlen  (tz-xd-num xd 1040 1 0.0)
                   warea (tz-xd-num xd 1040 2 0.0)
                   waz   (tz-xd-num xd 1040 3 0.0)
@@ -1370,10 +1386,12 @@
           (if (and xd (equal (tz-xd-nth xd 1000 0) "OPENING"))
             (progn
               (setq opctr  (cdr (assoc 10 (entget ent)))
-                    opid   (or (tz-xd-nth xd 1000 1) "O-???")
-                    optype (or (tz-xd-nth xd 1000 2) "Window")
-                    oparea (tz-xd-num xd 1040 0 0.0)
-                    opuf   (tz-xd-num xd 1040 1 0.0)
+                    opid   (tz-xd-nth xd 1000 1)
+                    optype (tz-xd-nth xd 1000 2)
+                    oparea (tz-xd-num xd 1040 0 0.0))
+              (if (null opid)   (setq opid "O-???"))
+              (if (null optype) (setq optype "Window"))
+              (setq opuf   (tz-xd-num xd 1040 1 0.0)
                     opshgc (tz-xd-num xd 1040 2 0.0))
               (if open-started (write-line "    }," fp))
               (write-line "    {" fp)
