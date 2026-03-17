@@ -1,0 +1,2835 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gbXML xmlns="http://www.gbxml.org/schema" temperatureUnit="F" lengthUnit="Feet" areaUnit="SquareFeet" volumeUnit="CubicFeet" version="6.01">
+  <Campus id="campus-1">
+    <Name>25-373-23 Wesley Vermont - LEVEL 1 - Title 24 - Take-Off_t24</Name>
+    <ClimateZone>3</ClimateZone>
+    <Building id="building-1" buildingType="MultiFamily">
+      <Name>25-373-23 Wesley Vermont - LEVEL 1 - Title 24 - Take-Off_t24</Name>
+      <Area>5140.8</Area>
+      <Azimuth>0.0</Azimuth>
+      <Space id="Z-040" zoneIdRef="Z-040" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>HALL H101</Name>
+        <Area>821.7</Area>
+        <Volume>7395.3</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-039" zoneIdRef="Z-039" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>HALL H106</Name>
+        <Area>377.0</Area>
+        <Volume>3393.0</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-038" zoneIdRef="Z-038" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>HALL H108</Name>
+        <Area>105.0</Area>
+        <Volume>945.0</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-037" zoneIdRef="Z-037" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>NURSE STATION 108</Name>
+        <Area>125.7</Area>
+        <Volume>1131.3</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-036" zoneIdRef="Z-036" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>NURSE STATION 109</Name>
+        <Area>112.5</Area>
+        <Volume>1012.5</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-035" zoneIdRef="Z-035" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>WH UTILITY 107</Name>
+        <Area>102.4</Area>
+        <Volume>921.6</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-033" zoneIdRef="Z-033" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>STAIR 2 S002</Name>
+        <Area>133.1</Area>
+        <Volume>1197.9</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-032" zoneIdRef="Z-032" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>stair</Name>
+        <Area>49.9</Area>
+        <Volume>449.1</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-031" zoneIdRef="Z-031" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>waste holding 128</Name>
+        <Area>29.5</Area>
+        <Volume>265.5</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-030" zoneIdRef="Z-030" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>jan 127</Name>
+        <Area>38.2</Area>
+        <Volume>343.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-029" zoneIdRef="Z-029" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>pump 126b</Name>
+        <Area>44.9</Area>
+        <Volume>404.1</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-028" zoneIdRef="Z-028" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>STORAGE 126</Name>
+        <Area>53.9</Area>
+        <Volume>485.1</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-027" zoneIdRef="Z-027" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>BREAK ROOM 123</Name>
+        <Area>212.0</Area>
+        <Volume>1908.0</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-026" zoneIdRef="Z-026" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>STAFF TOILET 124</Name>
+        <Area>63.5</Area>
+        <Volume>571.5</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-025" zoneIdRef="Z-025" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>PATIENT TOILET 125</Name>
+        <Area>62.9</Area>
+        <Volume>566.1</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-024" zoneIdRef="Z-024" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>LAB 129</Name>
+        <Area>204.2</Area>
+        <Volume>1837.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-023" zoneIdRef="Z-023" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>ELEV RM EL02</Name>
+        <Area>71.1</Area>
+        <Volume>639.9</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-022" zoneIdRef="Z-022" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>HALL H109</Name>
+        <Area>89.2</Area>
+        <Volume>802.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-021" zoneIdRef="Z-021" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>STAFF TOILET 118</Name>
+        <Area>49.3</Area>
+        <Volume>443.7</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-020" zoneIdRef="Z-020" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>PATIENT TOILET CR</Name>
+        <Area>50.4</Area>
+        <Volume>453.6</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-017" zoneIdRef="Z-017" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>EXAM 119</Name>
+        <Area>90.4</Area>
+        <Volume>813.6</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-016" zoneIdRef="Z-016" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>EXAM 122</Name>
+        <Area>90.4</Area>
+        <Volume>813.6</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-015" zoneIdRef="Z-015" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>EXAM 121</Name>
+        <Area>87.2</Area>
+        <Volume>784.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-014" zoneIdRef="Z-014" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>EXAM 120</Name>
+        <Area>90.3</Area>
+        <Volume>812.7</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-013" zoneIdRef="Z-013" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>RECEPTION 103</Name>
+        <Area>179.5</Area>
+        <Volume>1615.5</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-012" zoneIdRef="Z-012" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>SOILED HOLD 116</Name>
+        <Area>30.2</Area>
+        <Volume>271.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-011" zoneIdRef="Z-011" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>CLEAN HOLD 115</Name>
+        <Area>29.2</Area>
+        <Volume>262.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-010" zoneIdRef="Z-010" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>MED PREP 114</Name>
+        <Area>50.0</Area>
+        <Volume>450.0</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-009" zoneIdRef="Z-009" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>PUBLIC TOILET 113</Name>
+        <Area>50.9</Area>
+        <Volume>458.1</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-007" zoneIdRef="Z-007" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>EXAM 111</Name>
+        <Area>85.2</Area>
+        <Volume>766.8</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-006" zoneIdRef="Z-006" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>EXAM 112</Name>
+        <Area>85.7</Area>
+        <Volume>771.3</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-005" zoneIdRef="Z-005" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>STAIR 3 S003</Name>
+        <Area>47.7</Area>
+        <Volume>429.3</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-004" zoneIdRef="Z-004" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>STORAGE 106</Name>
+        <Area>138.6</Area>
+        <Volume>1247.4</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-003" zoneIdRef="Z-003" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>ENROLLMENT 105</Name>
+        <Area>145.4</Area>
+        <Volume>1308.6</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+      <Space id="Z-002" zoneIdRef="Z-002" conditionType="HeatedAndCooled" occupancyType="Residential">
+        <Name>SICK WAIT 102</Name>
+        <Area>1143.7</Area>
+        <Volume>10293.3</Volume>
+        <CeilingHeight>9.0</CeilingHeight>
+      </Space>
+    </Building>
+    <Surface id="W-023" surfaceType="ExteriorWall">
+      <Name>East Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>90.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>37.5667</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-005" openingType="FixedWindow">
+        <Name>Window O-005</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+      <Opening id="O-004" openingType="FixedWindow">
+        <Name>Window O-004</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+      <Opening id="O-003" openingType="FixedWindow">
+        <Name>Window O-003</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-022" surfaceType="ExteriorWall">
+      <Name>East Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-022"/>
+      <RectangularGeometry>
+        <Azimuth>90.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>18.2889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-002" openingType="FixedWindow">
+        <Name>Window O-002</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+      <Opening id="O-001" openingType="FixedWindow">
+        <Name>Window O-001</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-021" surfaceType="ExteriorWall">
+      <Name>East Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-038"/>
+      <RectangularGeometry>
+        <Azimuth>90.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.1778</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-012" openingType="NonSlidingDoor">
+        <Name>Door O-012</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>4.5826</Width>
+          <Height>4.5826</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-020" surfaceType="ExteriorWall">
+      <Name>North Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-032"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.4778</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-019" surfaceType="ExteriorWall">
+      <Name>North Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-031"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.5889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-018" surfaceType="ExteriorWall">
+      <Name>North Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-030"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>4.0889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-017" surfaceType="ExteriorWall">
+      <Name>North Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-029"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>8.5000</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-016" surfaceType="ExteriorWall">
+      <Name>North Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-028"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.2111</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-015" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-028"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.3000</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-014" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-039"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>31.4111</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-013" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-021"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>8.3333</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-012" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-020"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.9889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-011" surfaceType="ExteriorWall">
+      <Name>North Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-036"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.6778</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-010" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-036"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.2889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-009" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-037"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.2111</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-008" surfaceType="ExteriorWall">
+      <Name>West Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-005"/>
+      <RectangularGeometry>
+        <Azimuth>270.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>3.2000</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-007" surfaceType="ExteriorWall">
+      <Name>South Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-005"/>
+      <RectangularGeometry>
+        <Azimuth>180.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.0333</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-011" openingType="FixedWindow">
+        <Name>Window O-011</Name>
+        <RectangularGeometry>
+          <Azimuth>180.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-006" surfaceType="ExteriorWall">
+      <Name>South Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-040"/>
+      <RectangularGeometry>
+        <Azimuth>180.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>2.8333</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-005" surfaceType="ExteriorWall">
+      <Name>South Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-033"/>
+      <RectangularGeometry>
+        <Azimuth>180.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>3.1667</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="W-004" surfaceType="ExteriorWall">
+      <Name>South Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-004"/>
+      <RectangularGeometry>
+        <Azimuth>180.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.0889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-010" openingType="FixedWindow">
+        <Name>Window O-010</Name>
+        <RectangularGeometry>
+          <Azimuth>180.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-003" surfaceType="ExteriorWall">
+      <Name>South Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-003"/>
+      <RectangularGeometry>
+        <Azimuth>180.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.2222</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-009" openingType="FixedWindow">
+        <Name>Window O-009</Name>
+        <RectangularGeometry>
+          <Azimuth>180.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-002" surfaceType="ExteriorWall">
+      <Name>South Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>180.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>12.4889</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-008" openingType="FixedWindow">
+        <Name>Window O-008</Name>
+        <RectangularGeometry>
+          <Azimuth>180.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="W-001" surfaceType="ExteriorWall">
+      <Name>East Wall</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>90.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>28.0556</Width>
+        <Height>9.0000</Height>
+        <Tilt>90.0000</Tilt>
+      </RectangularGeometry>
+      <Opening id="O-007" openingType="FixedWindow">
+        <Name>Window O-007</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+      <Opening id="O-006" openingType="FixedWindow">
+        <Name>Window O-006</Name>
+        <RectangularGeometry>
+          <Azimuth>90.0000</Azimuth>
+          <CartesianPoint>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+            <Coordinate>0</Coordinate>
+          </CartesianPoint>
+          <Width>5.4772</Width>
+          <Height>5.4772</Height>
+          <Tilt>90.0000</Tilt>
+        </RectangularGeometry>
+      </Opening>
+    </Surface>
+    <Surface id="Z-040-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-040"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>28.6653</Width>
+        <Height>28.6653</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-040-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-040"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>28.6653</Width>
+        <Height>28.6653</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-040-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-040"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>28.6653</Width>
+        <Height>28.6653</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-040-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-040"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>28.6653</Width>
+        <Height>28.6653</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-039-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-039"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>19.4165</Width>
+        <Height>19.4165</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-039-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-039"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>19.4165</Width>
+        <Height>19.4165</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-039-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-039"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>19.4165</Width>
+        <Height>19.4165</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-039-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-039"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>19.4165</Width>
+        <Height>19.4165</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-038-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-038"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.2470</Width>
+        <Height>10.2470</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-038-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-038"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.2470</Width>
+        <Height>10.2470</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-038-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-038"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.2470</Width>
+        <Height>10.2470</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-038-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-038"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.2470</Width>
+        <Height>10.2470</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-037-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-037"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.2116</Width>
+        <Height>11.2116</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-037-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-037"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.2116</Width>
+        <Height>11.2116</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-037-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-037"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.2116</Width>
+        <Height>11.2116</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-037-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-037"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.2116</Width>
+        <Height>11.2116</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-036-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-036"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.6066</Width>
+        <Height>10.6066</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-036-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-036"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.6066</Width>
+        <Height>10.6066</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-036-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-036"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.6066</Width>
+        <Height>10.6066</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-036-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-036"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.6066</Width>
+        <Height>10.6066</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-035-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-035"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.1193</Width>
+        <Height>10.1193</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-035-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-035"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.1193</Width>
+        <Height>10.1193</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-035-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-035"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.1193</Width>
+        <Height>10.1193</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-035-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-035"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>10.1193</Width>
+        <Height>10.1193</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-033-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-033"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.5369</Width>
+        <Height>11.5369</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-033-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-033"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.5369</Width>
+        <Height>11.5369</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-033-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-033"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.5369</Width>
+        <Height>11.5369</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-033-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-033"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.5369</Width>
+        <Height>11.5369</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-032-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-032"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0640</Width>
+        <Height>7.0640</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-032-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-032"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0640</Width>
+        <Height>7.0640</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-032-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-032"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0640</Width>
+        <Height>7.0640</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-032-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-032"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0640</Width>
+        <Height>7.0640</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-031-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-031"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4314</Width>
+        <Height>5.4314</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-031-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-031"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4314</Width>
+        <Height>5.4314</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-031-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-031"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4314</Width>
+        <Height>5.4314</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-031-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-031"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4314</Width>
+        <Height>5.4314</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-030-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-030"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.1806</Width>
+        <Height>6.1806</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-030-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-030"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.1806</Width>
+        <Height>6.1806</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-030-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-030"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.1806</Width>
+        <Height>6.1806</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-030-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-030"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.1806</Width>
+        <Height>6.1806</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-029-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-029"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.7007</Width>
+        <Height>6.7007</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-029-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-029"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.7007</Width>
+        <Height>6.7007</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-029-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-029"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.7007</Width>
+        <Height>6.7007</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-029-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-029"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.7007</Width>
+        <Height>6.7007</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-028-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-028"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.3417</Width>
+        <Height>7.3417</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-028-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-028"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.3417</Width>
+        <Height>7.3417</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-028-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-028"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.3417</Width>
+        <Height>7.3417</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-028-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-028"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.3417</Width>
+        <Height>7.3417</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-027-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-027"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.5602</Width>
+        <Height>14.5602</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-027-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-027"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.5602</Width>
+        <Height>14.5602</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-027-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-027"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.5602</Width>
+        <Height>14.5602</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-027-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-027"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.5602</Width>
+        <Height>14.5602</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-026-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-026"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9687</Width>
+        <Height>7.9687</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-026-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-026"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9687</Width>
+        <Height>7.9687</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-026-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-026"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9687</Width>
+        <Height>7.9687</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-026-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-026"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9687</Width>
+        <Height>7.9687</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-025-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-025"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9310</Width>
+        <Height>7.9310</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-025-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-025"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9310</Width>
+        <Height>7.9310</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-025-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-025"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9310</Width>
+        <Height>7.9310</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-025-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-025"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.9310</Width>
+        <Height>7.9310</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-024-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-024"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.2899</Width>
+        <Height>14.2899</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-024-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-024"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.2899</Width>
+        <Height>14.2899</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-024-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-024"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.2899</Width>
+        <Height>14.2899</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-024-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-024"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>14.2899</Width>
+        <Height>14.2899</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-023-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-023"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>8.4321</Width>
+        <Height>8.4321</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-023-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-023"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>8.4321</Width>
+        <Height>8.4321</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-023-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-023"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>8.4321</Width>
+        <Height>8.4321</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-023-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-023"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>8.4321</Width>
+        <Height>8.4321</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-022-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-022"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.4446</Width>
+        <Height>9.4446</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-022-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-022"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.4446</Width>
+        <Height>9.4446</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-022-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-022"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.4446</Width>
+        <Height>9.4446</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-022-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-022"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.4446</Width>
+        <Height>9.4446</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-021-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-021"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0214</Width>
+        <Height>7.0214</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-021-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-021"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0214</Width>
+        <Height>7.0214</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-021-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-021"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0214</Width>
+        <Height>7.0214</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-021-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-021"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0214</Width>
+        <Height>7.0214</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-020-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-020"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0993</Width>
+        <Height>7.0993</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-020-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-020"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0993</Width>
+        <Height>7.0993</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-020-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-020"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0993</Width>
+        <Height>7.0993</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-020-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-020"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0993</Width>
+        <Height>7.0993</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-017-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-017"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-017-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-017"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-017-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-017"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-017-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-017"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-016-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-016"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-016-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-016"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-016-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-016"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-016-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-016"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5079</Width>
+        <Height>9.5079</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-015-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-015"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.3381</Width>
+        <Height>9.3381</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-015-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-015"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.3381</Width>
+        <Height>9.3381</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-015-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-015"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.3381</Width>
+        <Height>9.3381</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-015-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-015"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.3381</Width>
+        <Height>9.3381</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-014-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-014"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5026</Width>
+        <Height>9.5026</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-014-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-014"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5026</Width>
+        <Height>9.5026</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-014-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-014"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5026</Width>
+        <Height>9.5026</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-014-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-014"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.5026</Width>
+        <Height>9.5026</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-013-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-013"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>13.3978</Width>
+        <Height>13.3978</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-013-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-013"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>13.3978</Width>
+        <Height>13.3978</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-013-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-013"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>13.3978</Width>
+        <Height>13.3978</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-013-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-013"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>13.3978</Width>
+        <Height>13.3978</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-012-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-012"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4955</Width>
+        <Height>5.4955</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-012-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-012"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4955</Width>
+        <Height>5.4955</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-012-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-012"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4955</Width>
+        <Height>5.4955</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-012-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-012"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4955</Width>
+        <Height>5.4955</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-011-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-011"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4037</Width>
+        <Height>5.4037</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-011-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-011"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4037</Width>
+        <Height>5.4037</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-011-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-011"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4037</Width>
+        <Height>5.4037</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-011-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-011"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>5.4037</Width>
+        <Height>5.4037</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-010-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-010"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0711</Width>
+        <Height>7.0711</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-010-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-010"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0711</Width>
+        <Height>7.0711</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-010-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-010"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0711</Width>
+        <Height>7.0711</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-010-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-010"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.0711</Width>
+        <Height>7.0711</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-009-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-009"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.1344</Width>
+        <Height>7.1344</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-009-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-009"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.1344</Width>
+        <Height>7.1344</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-009-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-009"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.1344</Width>
+        <Height>7.1344</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-009-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-009"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>7.1344</Width>
+        <Height>7.1344</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-007-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-007"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2304</Width>
+        <Height>9.2304</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-007-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-007"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2304</Width>
+        <Height>9.2304</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-007-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-007"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2304</Width>
+        <Height>9.2304</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-007-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-007"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2304</Width>
+        <Height>9.2304</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-006-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-006"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2574</Width>
+        <Height>9.2574</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-006-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-006"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2574</Width>
+        <Height>9.2574</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-006-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-006"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2574</Width>
+        <Height>9.2574</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-006-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-006"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>9.2574</Width>
+        <Height>9.2574</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-005-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-005"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.9065</Width>
+        <Height>6.9065</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-005-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-005"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.9065</Width>
+        <Height>6.9065</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-005-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-005"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.9065</Width>
+        <Height>6.9065</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-005-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-005"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>6.9065</Width>
+        <Height>6.9065</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-004-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-004"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.7729</Width>
+        <Height>11.7729</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-004-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-004"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.7729</Width>
+        <Height>11.7729</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-004-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-004"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.7729</Width>
+        <Height>11.7729</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-004-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-004"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>11.7729</Width>
+        <Height>11.7729</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-003-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-003"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>12.0582</Width>
+        <Height>12.0582</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-003-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-003"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>12.0582</Width>
+        <Height>12.0582</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-003-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-003"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>12.0582</Width>
+        <Height>12.0582</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-003-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-003"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>12.0582</Width>
+        <Height>12.0582</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-002-SLAB" surfaceType="SlabOnGrade">
+      <Name>Slab on Grade</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>33.8186</Width>
+        <Height>33.8186</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-002-FLOOR" surfaceType="RaisedFloor">
+      <Name>Interior Floor</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>33.8186</Width>
+        <Height>33.8186</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-002-CEIL" surfaceType="InteriorCeiling">
+      <Name>Interior Ceiling</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>33.8186</Width>
+        <Height>33.8186</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+    <Surface id="Z-002-ROOF" surfaceType="Roof">
+      <Name>Roof</Name>
+      <AdjacentSpaceId spaceIdRef="Z-002"/>
+      <RectangularGeometry>
+        <Azimuth>0.0000</Azimuth>
+        <CartesianPoint>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+          <Coordinate>0</Coordinate>
+        </CartesianPoint>
+        <Width>33.8186</Width>
+        <Height>33.8186</Height>
+        <Tilt>0.0000</Tilt>
+      </RectangularGeometry>
+    </Surface>
+  </Campus>
+</gbXML>

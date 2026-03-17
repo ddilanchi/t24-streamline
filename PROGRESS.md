@@ -92,8 +92,8 @@ Step 5 — Rebuild polyline from remaining vertices
 
 | File | Path |
 |------|------|
-| Primary LSP | `D:\Documents\T24 Streamline Project\T24_TakeOff.lsp` |
-| Python scripts | `D:\Documents\T24 Streamline Project\` |
+| Primary LSP | `D:\Documents\EGI AUTOMATIONS\T24 Streamline Project\T24_TakeOff.lsp` |
+| Python scripts | `D:\Documents\EGI AUTOMATIONS\T24 Streamline Project\` |
 | Git remote | github.com/ddilanchi/t24-streamline |
 
 ---

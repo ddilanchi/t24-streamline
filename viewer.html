@@ -5,7 +5,7 @@
 <title>T24 3D Viewer</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
+body { font-family: system-ui, sans-serif; background: #1a2233; color: #c9d1d9;
        display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
 /* Header */
@@ -30,14 +30,18 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
 /* 3D Viewport */
 #vp-wrap { position: relative; flex: 0 0 62%; overflow: hidden; }
 #canvas { display: block; width: 100%; height: 100%; }
-#compass-ring { position: absolute; bottom: 10px; left: 10px; width: 80px; height: 80px;
-                border-radius: 50%; border: 1px solid #30363d;
-                background: rgba(13,17,23,0.75); pointer-events: none; }
+#compass-ring { position: absolute; bottom: 10px; left: 10px; width: 100px; height: 100px;
+                border-radius: 50%; border: 2px solid rgba(255,255,255,0.6);
+                background: rgba(0,0,0,0.5); pointer-events: none; }
 #legend { position: absolute; top: 10px; left: 10px; background: rgba(13,17,23,.85);
           border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px;
           font-size: 11px; line-height: 1.8; }
 #legend .dot { display: inline-block; width: 10px; height: 10px;
                border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.leg-item { cursor: pointer; padding: 1px 4px; border-radius: 4px; user-select: none; }
+.leg-item:hover { background: rgba(88,166,255,.15); }
+.leg-item:not(.active) { opacity: 0.35; text-decoration: line-through; }
+.leg-item:not(.active) .dot { opacity: 0.3; }
 #sel-info { position: absolute; bottom: 10px; right: 10px; max-width: 260px;
             background: rgba(13,17,23,.9); border: 1px solid #30363d;
             border-radius: 8px; padding: 8px 10px; font-size: 12px;
@@ -94,6 +98,18 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
          z-index: 999; white-space: pre-wrap; }
 #toast.ok { border-color: #2ea043; }
 #toast.err { border-color: #f85149; }
+
+/* Sun controls */
+#sun-bar { position: absolute; bottom: 10px; left: 100px; right: 10px;
+           display: flex; align-items: center; gap: 8px;
+           background: rgba(22,27,34,.88); border: 1px solid #30363d;
+           border-radius: 8px; padding: 6px 12px; font-size: 12px; z-index: 5; }
+#sun-bar button { background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+                  border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 14px; }
+#sun-bar button:hover { background: #30363d; }
+#sun-bar button.active { background: #238636; border-color: #2ea043; color: #fff; }
+#sun-slider { flex: 1; accent-color: #f0c040; cursor: pointer; }
+#sun-time { color: #f0c040; font-weight: 600; min-width: 52px; text-align: center; }
 </style>
 </head>
 <body>
@@ -101,7 +117,9 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
 <div id="header">
   <h1>T24 3D Viewer</h1>
   <select id="file-select"></select>
-  <button class="hbtn" onclick="reloadData()">⟳ Refresh</button>
+  <button class="hbtn" onclick="browseFile()">📂 Open File</button>
+  <button class="hbtn" onclick="importJson()">📥 Import JSON</button>
+  <button class="hbtn" onclick="location.reload()">⟳ Reload</button>
   <button class="hbtn primary" onclick="generateXML()">Generate gbXML</button>
   <span id="status-pill">Loading…</span>
 </div>
@@ -110,15 +128,24 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9;
   <div id="vp-wrap">
     <canvas id="canvas"></canvas>
     <div id="legend">
-      <div><span class="dot" style="background:#5B8DB8"></span>Exterior Wall</div>
-      <div><span class="dot" style="background:#9E9E9E"></span>Interior Wall</div>
-      <div><span class="dot" style="background:#C85250"></span>Roof</div>
-      <div><span class="dot" style="background:#607D8B"></span>Slab</div>
-      <div><span class="dot" style="background:#87CEEB;opacity:.8"></span>Window</div>
-      <div><span class="dot" style="background:#FFD700;opacity:.8"></span>Skylight</div>
-      <div><span class="dot" style="background:#F39C12;opacity:.8"></span>Door</div>
+      <div class="leg-item active" data-layer="extwall" onclick="toggleLayer(this)"><span class="dot" style="background:#E8C840"></span>Exterior Wall</div>
+      <div class="leg-item active" data-layer="intwall" onclick="toggleLayer(this)"><span class="dot" style="background:#9E9E9E"></span>Interior Wall</div>
+      <div class="leg-item active" data-layer="roof" onclick="toggleLayer(this)"><span class="dot" style="background:#C85250"></span>Roof</div>
+      <div class="leg-item active" data-layer="slab" onclick="toggleLayer(this)"><span class="dot" style="background:#607D8B"></span>Slab</div>
+      <div class="leg-item active" data-layer="window" onclick="toggleLayer(this)"><span class="dot" style="background:#4488EE"></span>Window</div>
+      <div class="leg-item active" data-layer="skylight" onclick="toggleLayer(this)"><span class="dot" style="background:#CC44CC"></span>Skylight</div>
+      <div class="leg-item active" data-layer="door" onclick="toggleLayer(this)"><span class="dot" style="background:#E04040"></span>Door</div>
+      <div class="leg-item active" data-layer="zone" onclick="toggleLayer(this)"><span class="dot" style="background:#4A90E2;opacity:.4"></span>Zones</div>
+      <div class="leg-item active" data-layer="label" onclick="toggleLayer(this)"><span class="dot" style="background:#e6edf3;opacity:.6"></span>Labels</div>
+      <div id="floor-toggles" style="margin-top:6px;border-top:1px solid #555;padding-top:4px;"></div>
     </div>
     <div id="compass-ring"></div>
+    <div id="sun-bar">
+      <button id="sun-play" onclick="toggleSunPlay()" title="Play/pause sun animation">&#9654;</button>
+      <input id="sun-slider" type="range" min="360" max="1140" value="600" step="1"
+             oninput="setSunMinute(+this.value)" title="Time of day (6am–7pm)">
+      <span id="sun-time">10:00</span>
+    </div>
     <div id="sel-info"><h3 id="sel-title"></h3><table id="sel-table"></table></div>
   </div>
 
@@ -162,8 +189,29 @@ let buildingData = null;
 let geometryData = null;
 let lastMtime = 0;
 let isEditing = false;
+
+// ── Idle timeout: close after 1 hour of no input ─────────────────────────
+let _idleTimer = null;
+const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour
+function resetIdleTimer() {
+  if (_idleTimer) clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => {
+    document.title = 'Session timed out';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#1e2a38;color:#ccc;font:24px sans-serif;text-align:center"><div>Session timed out after 1 hour of inactivity.<br><button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;font-size:18px;cursor:pointer">Reload</button></div></div>';
+  }, IDLE_TIMEOUT_MS);
+}
+['mousemove','mousedown','keydown','scroll','touchstart'].forEach(
+  evt => document.addEventListener(evt, resetIdleTimer, { passive: true })
+);
+// wheel separately — don't interfere with OrbitControls preventDefault
+document.addEventListener('wheel', resetIdleTimer, { passive: true, capture: false });
+resetIdleTimer();
 let selectedId = null;
 let selectableObjects = []; // {mesh, id, type, data}
+let sunLight, sunSphere, sunGlow;
+let sunMinute = 600;       // minutes since midnight (0–1440)
+let sunPlaying = false;
+let sunSpeed = 2;          // minutes per frame
 
 // ── Three.js init ─────────────────────────────────────────────────────────
 function initThree() {
@@ -173,29 +221,140 @@ function initThree() {
   renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.autoClear = false;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0d1117);
-  scene.fog = new THREE.FogExp2(0x0d1117, 0.003);
+  scene.background = new THREE.Color(0x2a3444);
+  scene.fog = new THREE.FogExp2(0x2a3444, 0.0005);
 
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 3000);
   camera.position.set(0, 80, 120);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
+  controls.dampingFactor = 0.1;
+  controls.minDistance = 0.1;
+  controls.maxDistance = 3000;
+  controls.zoomSpeed = 2.5;
+  controls.panSpeed = 1.5;
+  controls.rotateSpeed = 0.8;
+  controls.screenSpacePanning = true;
+  controls.maxPolarAngle = Math.PI * 0.88;
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-  sun.position.set(60, 120, 80);
-  scene.add(sun);
-  const fill = new THREE.DirectionalLight(0x8ab4f8, 0.3);
+  // Double-click to zoom to point under cursor
+  renderer.domElement.addEventListener('dblclick', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(scene.children, true);
+    if (hits.length > 0) {
+      const pt = hits[0].point;
+      // Animate camera target to the clicked point
+      const start = controls.target.clone();
+      const startPos = camera.position.clone();
+      // Move camera closer: keep direction, reduce distance to 30% of current
+      const dir = startPos.clone().sub(pt).normalize();
+      const dist = startPos.distanceTo(pt);
+      const newDist = Math.max(dist * 0.3, 2);
+      const endPos = pt.clone().add(dir.multiplyScalar(newDist));
+      let t = 0;
+      const flyTo = () => {
+        t += 0.06;
+        if (t >= 1) t = 1;
+        const ease = t * (2 - t); // ease-out
+        controls.target.lerpVectors(start, pt, ease);
+        camera.position.lerpVectors(startPos, endPos, ease);
+        controls.update();
+        if (t < 1) requestAnimationFrame(flyTo);
+      };
+      flyTo();
+    }
+  });
+
+  // Lights — brighter scene
+  scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+  scene.add(new THREE.HemisphereLight(0x87CEEB, 0x4a6741, 0.5));  // sky/ground
+  const fill = new THREE.DirectionalLight(0x8ab4f8, 0.25);
   fill.position.set(-60, 40, -80);
   scene.add(fill);
 
+  // Sun light with shadows
+  sunLight = new THREE.DirectionalLight(0xfff4d6, 1.8);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.left = -200;
+  sunLight.shadow.camera.right = 200;
+  sunLight.shadow.camera.top = 200;
+  sunLight.shadow.camera.bottom = -200;
+  sunLight.shadow.camera.near = 1;
+  sunLight.shadow.camera.far = 600;
+  sunLight.shadow.bias = -0.001;
+  scene.add(sunLight);
+  scene.add(sunLight.target);
+
+  // Sun sphere (visual) — large enough to see from any angle
+  const sunGeo = new THREE.SphereGeometry(8, 24, 24);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xFFDD44 });
+  sunSphere = new THREE.Mesh(sunGeo, sunMat);
+  scene.add(sunSphere);
+  // Inner glow
+  const glowGeo = new THREE.SphereGeometry(12, 24, 24);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xFFEE88, transparent: true, opacity: 0.2 });
+  sunGlow = new THREE.Mesh(glowGeo, glowMat);
+  scene.add(sunGlow);
+  // Outer corona
+  const coronaGeo = new THREE.SphereGeometry(18, 16, 16);
+  const coronaMat = new THREE.MeshBasicMaterial({ color: 0xFFFF99, transparent: true, opacity: 0.08 });
+  const corona = new THREE.Mesh(coronaGeo, coronaMat);
+  sunSphere.add(corona);  // child of sunSphere so it follows automatically
+
+  // Sun path arc (dashed line showing trajectory) — seasonal for LA
+  const arcPts = [];
+  {
+    const latR = 34.05 * Math.PI / 180;
+    const now2 = new Date();
+    const doy = Math.floor((now2 - new Date(now2.getFullYear(),0,0)) / 86400000);
+    const declR = -23.44 * Math.cos(2 * Math.PI * (doy + 10) / 365) * Math.PI / 180;
+    for (let m = 240; m <= 1260; m += 10) {
+      const hh = m / 60;
+      const haD = (hh - 12) * 15;
+      const haR = haD * Math.PI / 180;
+      const sE = Math.sin(latR) * Math.sin(declR) + Math.cos(latR) * Math.cos(declR) * Math.cos(haR);
+      const eR = Math.asin(Math.max(-1, Math.min(1, sE)));
+      if (eR < -0.02) continue;
+      const cE = Math.cos(eR);
+      const sA = cE > 0.01 ? (Math.cos(declR) * Math.sin(haR)) / cE : 0;
+      const cA = cE > 0.01 ? (Math.sin(latR) * sE - Math.sin(declR)) / (Math.cos(latR) * cE) : 1;
+      const aR = Math.atan2(sA, cA);
+      const dd = 250;
+      const horiz = dd * cE;
+      arcPts.push(new THREE.Vector3(-horiz * Math.sin(aR), dd * Math.sin(Math.max(eR, 0)), horiz * Math.cos(aR)));
+    }
+  }
+  if (arcPts.length > 1) {
+    const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPts);
+    const arcMat = new THREE.LineDashedMaterial({ color: 0xFFDD44, transparent: true, opacity: 0.3, dashSize: 4, gapSize: 3 });
+    const arcLine = new THREE.Line(arcGeo, arcMat);
+    arcLine.computeLineDistances();
+    scene.add(arcLine);
+  }
+
+  // Position sun at default time
+  setSunMinute(600);
+
+  // Ground plane for shadow receiving
+  const groundGeo = new THREE.PlaneGeometry(800, 800);
+  const groundMat = new THREE.ShadowMaterial({ opacity: 0.3 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.05;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
   // Grid
-  const grid = new THREE.GridHelper(600, 60, 0x21262d, 0x161b22);
+  const grid = new THREE.GridHelper(600, 60, 0x3a4555, 0x2a3444);
   scene.add(grid);
 
   raycaster = new THREE.Raycaster();
@@ -205,22 +364,22 @@ function initThree() {
 
   // 3D Compass scene
   compassScene = new THREE.Scene();
+  compassScene.background = new THREE.Color(0x1a1a2a);
   compassCam = new THREE.PerspectiveCamera(50, 1, 0.01, 20);
-  compassScene.add(new THREE.AmbientLight(0xffffff, 1.2));
-  // Axes: +X=East(red), -Z=North(blue), +Y=Up(green), faded reverses
+  compassScene.add(new THREE.AmbientLight(0xffffff, 3.0));
   const O = new THREE.Vector3(0, 0, 0);
   const axDefs = [
-    { dir: new THREE.Vector3(0, 0, -1), color: 0x4488ff, label: 'N', lcolor: '#4488ff' },
-    { dir: new THREE.Vector3(1, 0, 0),  color: 0xff4444, label: 'E', lcolor: '#ff6666' },
-    { dir: new THREE.Vector3(0, 1, 0),  color: 0x44cc44, label: '',  lcolor: '' },
-    { dir: new THREE.Vector3(0, 0, 1),  color: 0x335577, label: 'S', lcolor: '#557799' },
-    { dir: new THREE.Vector3(-1, 0, 0), color: 0x773333, label: 'W', lcolor: '#886666' },
+    { dir: new THREE.Vector3(0, 0, -1), color: 0xffffff, label: 'N', lcolor: '#ffffff' },
+    { dir: new THREE.Vector3(1, 0, 0),  color: 0xffffff, label: 'E', lcolor: '#ffffff' },
+    { dir: new THREE.Vector3(0, 1, 0),  color: 0xffffff, label: '',  lcolor: '' },
+    { dir: new THREE.Vector3(0, 0, 1),  color: 0xaaaaaa, label: 'S', lcolor: '#cccccc' },
+    { dir: new THREE.Vector3(-1, 0, 0), color: 0xaaaaaa, label: 'W', lcolor: '#cccccc' },
   ];
   axDefs.forEach(({ dir, color, label, lcolor }) => {
     const len = label && label !== 'S' && label !== 'W' ? 1.0 : 0.6;
     compassScene.add(new THREE.ArrowHelper(dir, O, len, color, len * 0.3, len * 0.18));
     if (label) {
-      const sp = makeLabel(label, lcolor, 26);
+      const sp = makeLabel(label, lcolor, 28);
       sp.scale.set(3.5, 0.9, 1);
       sp.position.copy(dir).multiplyScalar(len + 0.55);
       compassScene.add(sp);
@@ -241,6 +400,14 @@ function initThree() {
     requestAnimationFrame(animate);
     controls.update();
 
+    // Advance sun if playing
+    if (sunPlaying) {
+      sunMinute += sunSpeed;
+      if (sunMinute > 1140) sunMinute = 360;  // wrap sunset→sunrise
+      document.getElementById('sun-slider').value = sunMinute;
+      updateSunPosition();
+    }
+
     const W = renderer.domElement.width, H = renderer.domElement.height;
     // Main scene
     renderer.setViewport(0, 0, W, H);
@@ -249,9 +416,9 @@ function initThree() {
     renderer.clear();
     renderer.render(scene, camera);
 
-    // Compass inset – bottom-left, 80×80 CSS px
+    // Compass inset – bottom-left, 100×100 CSS px
     const dpr = renderer.getPixelRatio();
-    const cs = Math.round(80 * dpr), cm = Math.round(10 * dpr);
+    const cs = Math.round(100 * dpr), cm = Math.round(10 * dpr);
     renderer.setViewport(cm, cm, cs, cs);
     renderer.setScissor(cm, cm, cs, cs);
     renderer.setScissorTest(true);
@@ -264,6 +431,114 @@ function initThree() {
     renderer.setScissorTest(false);
   })();
 }
+
+// ── Sun controls ─────────────────────────────────────────────────────────
+function setSunMinute(m) {
+  sunMinute = m;
+  document.getElementById('sun-slider').value = m;
+  updateSunPosition();
+}
+
+function updateSunPosition() {
+  const h = sunMinute / 60;  // hours (0–24)
+  const timeLabel = `${String(Math.floor(h) % 24).padStart(2,'0')}:${String(Math.floor(sunMinute % 60)).padStart(2,'0')}`;
+  document.getElementById('sun-time').textContent = timeLabel;
+
+  // Realistic solar arc for Los Angeles (34.05°N, 118.25°W)
+  // Declination based on current date for seasonal accuracy
+  const lat = 34.05 * Math.PI / 180;
+  const now = new Date();
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(),0,0)) / 86400000);
+  const decl = -23.44 * Math.cos(2 * Math.PI * (dayOfYear + 10) / 365) * Math.PI / 180;
+  const hourAngleDeg = (h - 12) * 15;
+  const ha = hourAngleDeg * Math.PI / 180;
+
+  // Solar elevation: sin(elev) = sin(lat)*sin(decl) + cos(lat)*cos(decl)*cos(ha)
+  const sinElev = Math.sin(lat) * Math.sin(decl) + Math.cos(lat) * Math.cos(decl) * Math.cos(ha);
+  const elevRad = Math.asin(Math.max(-0.1, Math.min(1, sinElev)));
+  const elevDeg = elevRad * 180 / Math.PI;
+
+  // Solar azimuth: measured from South, positive=West, negative=East
+  const cosElev = Math.cos(elevRad);
+  const sinAz = cosElev > 0.01 ? (Math.cos(decl) * Math.sin(ha)) / cosElev : 0;
+  const cosAz = cosElev > 0.01 ? (Math.sin(lat) * sinElev - Math.sin(decl)) / (Math.cos(lat) * cosElev) : 1;
+  const azRad = Math.atan2(sinAz, cosAz);  // 0=South, +West, -East
+
+  // Three.js coords: +X=East, +Z=South, -Z=North
+  const dist = 250;
+  const sy = dist * Math.sin(Math.max(elevRad, -0.05));
+  const horiz = dist * Math.cos(Math.max(elevRad, -0.05));
+  const sx = -horiz * Math.sin(azRad);  // azRad from South: -East, +West → flip for +X=East
+  const sz = horiz * Math.cos(azRad);   // South = +Z
+
+  if (sunLight) {
+    sunLight.position.set(sx, Math.max(sy, 2), sz);
+    sunLight.target.position.set(0, 0, 0);
+    // Dim when below horizon
+    const aboveHorizon = elevDeg > 0;
+    sunLight.intensity = aboveHorizon ? 1.8 : 0.0;
+    sunLight.color.setHex(elevDeg > 20 ? 0xfff4d6 : elevDeg > 5 ? 0xffcc66 : 0xff8833);
+  }
+  if (sunSphere) {
+    sunSphere.position.set(sx, Math.max(sy, 2), sz);
+    sunSphere.visible = elevDeg > -5;
+    sunSphere.material.color.setHex(elevDeg > 20 ? 0xFFDD44 : elevDeg > 5 ? 0xFFAA22 : 0xFF6600);
+  }
+  if (sunGlow) {
+    sunGlow.position.set(sx, Math.max(sy, 2), sz);
+    sunGlow.visible = elevDeg > -5;
+  }
+
+  // Update scene background to reflect time of day
+  const dayFactor = Math.max(0, Math.min(1, elevDeg / 30));
+  const bgR = 0.16 + dayFactor * 0.35;
+  const bgG = 0.20 + dayFactor * 0.40;
+  const bgB = 0.27 + dayFactor * 0.45;
+  if (scene) {
+    scene.background.setRGB(bgR, bgG, bgB);
+    if (scene.fog) scene.fog.color.setRGB(bgR, bgG, bgB);
+  }
+}
+
+window.setSunMinute = setSunMinute;
+
+// ── Layer visibility ─────────────────────────────────────────────────────
+const layerVisible = { extwall:true, intwall:true, roof:true, slab:true, window:true, skylight:true, door:true, zone:true, label:true };
+const floorVisible = {};
+
+window.toggleLayer = function(el) {
+  const layer = el.dataset.layer;
+  layerVisible[layer] = !layerVisible[layer];
+  el.classList.toggle('active', layerVisible[layer]);
+  applyVisibility();
+};
+
+window.toggleFloor = function(el) {
+  const fl = parseInt(el.dataset.floor);
+  floorVisible[fl] = !floorVisible[fl];
+  el.classList.toggle('active', floorVisible[fl]);
+  applyVisibility();
+};
+
+function applyVisibility() {
+  if (!buildingGroup) return;
+  buildingGroup.traverse(child => {
+    if (!child.userData) return;
+    let vis = true;
+    // Check layer visibility
+    if (child.userData.layer && layerVisible[child.userData.layer] === false) vis = false;
+    // Check floor visibility
+    if (child.userData.floor != null && floorVisible[child.userData.floor] === false) vis = false;
+    child.visible = vis;
+  });
+}
+
+window.toggleSunPlay = function() {
+  sunPlaying = !sunPlaying;
+  const btn = document.getElementById('sun-play');
+  btn.textContent = sunPlaying ? '\u23F8' : '\u25B6';
+  btn.classList.toggle('active', sunPlaying);
+};
 
 // ── Colors ────────────────────────────────────────────────────────────────
 function zoneColor(c) {
@@ -283,13 +558,13 @@ function surfColor(t) {
   if (s.includes('underground')) return 0x5D4037;
   if (s.includes('exposed') || s.includes('raised')) return 0x795548;
   if (s.includes('ceiling')) return 0xE57373;
-  return 0x5B8DB8;
+  return 0xE8C840;  // exterior wall — yellow (matches AutoCAD T24-WALL)
 }
 function openColor(t) {
   const s = (t||'').toLowerCase();
-  if (s.includes('sky')) return 0xFFD700;
-  if (s.includes('door')) return 0xF39C12;
-  return 0x87CEEB;
+  if (s.includes('sky')) return 0xCC44CC;   // magenta (matches AutoCAD T24-SKY)
+  if (s.includes('door')) return 0xE04040;  // red (matches AutoCAD T24-DOOR)
+  return 0x4488EE;  // window — blue (matches AutoCAD T24-WIN)
 }
 
 // ── Text sprite ───────────────────────────────────────────────────────────
@@ -306,6 +581,31 @@ function makeLabel(text, color = '#e6edf3', fontSize = 22) {
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   const sp = new THREE.Sprite(mat);
   sp.scale.set(12, 2.5, 1);
+  return sp;
+}
+
+function makeDimLabel(text, color = '#ffffff', fontSize = 18) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 40;
+  const ctx = c.getContext('2d');
+  // Background pill
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  const tw = ctx.measureText ? 0 : 0;
+  ctx.font = `bold ${fontSize}px system-ui`;
+  const m = ctx.measureText(text);
+  const pw = Math.min(m.width + 16, 250), ph = 28;
+  const rx = (256 - pw) / 2, ry = (40 - ph) / 2;
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(rx, ry, pw, ph, 6); ctx.fill(); }
+  else { ctx.fillRect(rx, ry, pw, ph); }
+  // Text
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 20);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(8, 1.8, 1);
   return sp;
 }
 
@@ -395,6 +695,8 @@ function renderBuilding(data) {
   selectableObjects = [];
 
   const pos = layoutZones(data.zones, data.walls);
+  const zoneFloor = {};  // map zone_id → floor number
+  data.zones.forEach(z => { zoneFloor[z.id] = z.floor || 1; });
   const wallsByZone = {};
   data.walls.forEach(w => {
     (wallsByZone[w.zone_id] = wallsByZone[w.zone_id] || []).push(w);
@@ -423,9 +725,9 @@ function renderBuilding(data) {
       side = Math.sqrt(Math.max(zone.area, 1));
 
       const shape = new THREE.Shape();
-      shape.moveTo(verts[0][0] - cx, -(verts[0][1] - cy));
+      shape.moveTo(verts[0][0] - cx, verts[0][1] - cy);
       for (let i = 1; i < verts.length; i++)
-        shape.lineTo(verts[i][0] - cx, -(verts[i][1] - cy));
+        shape.lineTo(verts[i][0] - cx, verts[i][1] - cy);
       shape.closePath();
 
       const extG = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
@@ -437,7 +739,7 @@ function renderBuilding(data) {
       });
       const fill = new THREE.Mesh(extG, fillM);
       fill.position.set(cx, yBase, -cy);
-      fill.userData = { type: 'zone', id: zone.id, data: zone };
+      fill.userData = { type: 'zone', id: zone.id, data: zone, layer: 'zone' };
       buildingGroup.add(fill);
       selectableObjects.push(fill);
 
@@ -446,6 +748,7 @@ function renderBuilding(data) {
         new THREE.LineBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.6 })
       );
       wire.position.set(cx, yBase, -cy);
+      wire.userData = { layer: 'zone', zoneId: zone.id };
       buildingGroup.add(wire);
     } else {
       // Square approximation
@@ -456,7 +759,7 @@ function renderBuilding(data) {
       });
       const box = new THREE.Mesh(boxG, boxM);
       box.position.set(x, yBase + h / 2, z);
-      box.userData = { type: 'zone', id: zone.id, data: zone };
+      box.userData = { type: 'zone', id: zone.id, data: zone, layer: 'zone' };
       buildingGroup.add(box);
       selectableObjects.push(box);
 
@@ -465,12 +768,14 @@ function renderBuilding(data) {
         new THREE.LineBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.6 })
       );
       wire.position.set(x, yBase + h / 2, z);
+      wire.userData = { layer: 'zone', zoneId: zone.id };
       buildingGroup.add(wire);
     }
 
     // Label
     const lbl = makeLabel(zone.name || zone.id);
-    lbl.position.set(x, yBase + h + 3, z);
+    lbl.position.set(x, yBase + h + 8, z);
+    lbl.userData = { layer: 'label', zoneId: zone.id };
     buildingGroup.add(lbl);
 
     // Walls
@@ -482,94 +787,310 @@ function renderBuilding(data) {
         const isRoof = surfType.includes('roof');
         const isSlab = surfType.includes('slab');
         if (!isRoof && !isSlab) return;
-        const wSide = Math.min(Math.sqrt(Math.max(wall.area, 1)), side * 0.96);
-        const planeG = new THREE.PlaneGeometry(wSide, wSide);
-        const planeM = new THREE.MeshLambertMaterial({
-          color: surfColor(wall.type), side: THREE.DoubleSide, transparent: true, opacity: 0.88
-        });
-        const plane = new THREE.Mesh(planeG, planeM);
-        plane.rotation.x = -Math.PI / 2;
-        plane.position.set(x, yBase + (isRoof ? h + 0.08 : 0.08), z);
-        plane.userData = { type: 'wall', id: wall.id, data: wall };
-        buildingGroup.add(plane);
-        selectableObjects.push(plane);
+        const yPos = yBase + (isRoof ? h + 0.08 : 0.08);
+
+        let horizMesh;
+        if (geo_z && geo_z.vertices_ft) {
+          // Polygon shape from CAD geometry
+          const verts = geo_z.vertices_ft;
+          const cx = geo_z.centroid_ft ? geo_z.centroid_ft[0] : verts.reduce((s,v)=>s+v[0],0)/verts.length;
+          const cy = geo_z.centroid_ft ? geo_z.centroid_ft[1] : verts.reduce((s,v)=>s+v[1],0)/verts.length;
+          const roofShape = new THREE.Shape();
+          roofShape.moveTo(verts[0][0] - cx, verts[0][1] - cy);
+          for (let vi = 1; vi < verts.length; vi++)
+            roofShape.lineTo(verts[vi][0] - cx, verts[vi][1] - cy);
+          roofShape.closePath();
+
+          // Scale for partial roofs (roof area < zone area)
+          const scaleFactor = zone.area > 0 ? Math.sqrt(Math.min(wall.area / zone.area, 1.0)) : 1.0;
+          const shapeG = new THREE.ShapeGeometry(roofShape);
+          shapeG.rotateX(-Math.PI / 2);
+          if (scaleFactor < 0.999) shapeG.scale(scaleFactor, 1, scaleFactor);
+
+          const planeM = new THREE.MeshLambertMaterial({
+            color: surfColor(wall.type), side: THREE.DoubleSide, transparent: true, opacity: 0.88
+          });
+          horizMesh = new THREE.Mesh(shapeG, planeM);
+          horizMesh.position.set(cx, yPos, -cy);
+        } else {
+          // Square fallback
+          const wSide = Math.min(Math.sqrt(Math.max(wall.area, 1)), side * 0.96);
+          const planeG = new THREE.PlaneGeometry(wSide, wSide);
+          const planeM = new THREE.MeshLambertMaterial({
+            color: surfColor(wall.type), side: THREE.DoubleSide, transparent: true, opacity: 0.88
+          });
+          horizMesh = new THREE.Mesh(planeG, planeM);
+          horizMesh.rotation.x = -Math.PI / 2;
+          horizMesh.position.set(x, yPos, z);
+        }
+        horizMesh.castShadow = true;
+        horizMesh.receiveShadow = true;
+        horizMesh.userData = { type: 'wall', id: wall.id, data: wall, layer: isRoof ? 'roof' : 'slab' };
+        buildingGroup.add(horizMesh);
+        selectableObjects.push(horizMesh);
+
+        // Area label on horiz surface
+        if (wall.area > 0) {
+          const hLabel = makeDimLabel(`${Math.round(wall.area)} sf`, isRoof ? '#ffcccc' : '#aaccee');
+          const hlx = horizMesh.position.x || x;
+          const hlz = horizMesh.position.z || z;
+          hLabel.position.set(hlx, yPos + 1.5, hlz);
+          hLabel.userData = { layer: isRoof ? 'roof' : 'slab', zoneId: zone.id };
+          buildingGroup.add(hLabel);
+        }
 
         // Skylights on roof
         if (isRoof) {
+          const skyY = yBase + h + 0.18;
+          const geoOpenings = geometryData && geometryData.openings;
           (openByWall[wall.id] || []).forEach(o => {
-            const oSide = Math.min(Math.sqrt(Math.max(o.area, 0.5)), wSide * 0.6);
+            const oSide = Math.sqrt(Math.max(o.area, 0.5));
             const og = new THREE.PlaneGeometry(oSide, oSide);
             const om = new THREE.MeshLambertMaterial({
               color: openColor(o.type), transparent: true, opacity: 0.7, side: THREE.DoubleSide
             });
             const om2 = new THREE.Mesh(og, om);
             om2.rotation.x = -Math.PI / 2;
-            om2.position.set(x, yBase + h + 0.18, z);
-            om2.userData = { type: 'opening', id: o.id, data: o };
+            const geo_o = geoOpenings && geoOpenings[o.id];
+            if (geo_o && geo_o.position_ft) {
+              om2.position.set(geo_o.position_ft[0], skyY, -geo_o.position_ft[1]);
+            } else {
+              const skyCx = geo_z ? (geo_z.centroid_ft ? geo_z.centroid_ft[0] : x) : x;
+              const skyCz = geo_z ? -(geo_z.centroid_ft ? geo_z.centroid_ft[1] : -z) : z;
+              om2.position.set(skyCx, skyY, skyCz);
+            }
+            om2.userData = { type: 'opening', id: o.id, data: o, layer: 'skylight' };
             buildingGroup.add(om2);
             selectableObjects.push(om2);
+            // Skylight area label
+            if (o.area > 0) {
+              const sLbl = makeDimLabel(`${Math.round(o.area)} sf`, '#ee88ee');
+              sLbl.position.set(om2.position.x, skyY + 1.5, om2.position.z);
+              sLbl.userData = { layer: 'skylight', zoneId: zone.id };
+              buildingGroup.add(sLbl);
+            }
           });
         }
       } else {
         // Vertical wall — use real wall segment if geometry available
         const geo_w = geometryData && geometryData.walls && geometryData.walls[wall.id];
-        let wx, wz, wallW, az;
-        az = wall.azimuth * Math.PI / 180;
-        const nx = Math.sin(az), nzDir = -Math.cos(az);
-        const wallH = h;
+        let wx, wz, wallW, wallRot;
+        let wallH = h;
+        const wallD = 0.5;  // wall thickness in ft
+        // Normal direction (outward from wall face)
+        let nx, nzDir;
 
         if (geo_w) {
           const p1 = geo_w.p1_ft, p2 = geo_w.p2_ft;
-          const mx = (p1[0] + p2[0]) / 2;
-          const my = (p1[1] + p2[1]) / 2;
-          wx = mx; wz = -my;
+          wx = (p1[0] + p2[0]) / 2;
+          wz = -(p1[1] + p2[1]) / 2;
           wallW = Math.sqrt((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2);
+          // Wall direction in Three.js: (dx, 0, -dy)
+          const dx = p2[0] - p1[0];
+          const dz = -(p2[1] - p1[1]);
+          // BoxGeometry width = local X. After rotation.y=θ, local X → (cosθ, 0, -sinθ)
+          // Align with (dx, dz): cosθ=dx/len, -sinθ=dz/len → θ=atan2(-dz, dx)
+          wallRot = Math.atan2(-dz, dx);
+          // Normal (outward) from wall azimuth
+          const azRad = (wall.azimuth || 0) * Math.PI / 180;
+          nx = Math.sin(azRad);
+          nzDir = -Math.cos(azRad);
+        } else if (geo_z && geo_z.vertices_ft) {
+          // No wall geometry — find the zone boundary segment matching this wall's azimuth
+          const az = wall.azimuth * Math.PI / 180;
+          nx = Math.sin(az); nzDir = -Math.cos(az);
+          const verts = geo_z.vertices_ft;
+          let bestSeg = null, bestAngleDiff = Infinity;
+          for (let vi = 0; vi < verts.length; vi++) {
+            const vA = verts[vi], vB = verts[(vi + 1) % verts.length];
+            const edx = vB[0] - vA[0], edy = vB[1] - vA[1];
+            const eLen = Math.sqrt(edx * edx + edy * edy);
+            if (eLen < 0.5) continue;
+            // Edge normal (outward, assuming CCW winding): rotate edge 90° CW → (edy, -edx)
+            const enx = edy / eLen, eny = -edx / eLen;
+            // Convert edge normal to azimuth: atan2(enx, eny) in CAD coords
+            let edgeAz = Math.atan2(enx, eny);
+            if (edgeAz < 0) edgeAz += 2 * Math.PI;
+            let wallAz = az; if (wallAz < 0) wallAz += 2 * Math.PI;
+            let diff = Math.abs(edgeAz - wallAz);
+            if (diff > Math.PI) diff = 2 * Math.PI - diff;
+            // Also try opposite normal (CW winding)
+            let edgeAz2 = edgeAz + Math.PI; if (edgeAz2 >= 2 * Math.PI) edgeAz2 -= 2 * Math.PI;
+            let diff2 = Math.abs(edgeAz2 - wallAz);
+            if (diff2 > Math.PI) diff2 = 2 * Math.PI - diff2;
+            const bestDiff = Math.min(diff, diff2);
+            if (bestDiff < bestAngleDiff) {
+              bestAngleDiff = bestDiff;
+              bestSeg = { p1: vA, p2: vB, len: eLen };
+            }
+          }
+          if (bestSeg && bestAngleDiff < 0.35) {  // ~20° tolerance
+            const sp1 = bestSeg.p1, sp2 = bestSeg.p2;
+            wx = (sp1[0] + sp2[0]) / 2;
+            wz = -(sp1[1] + sp2[1]) / 2;
+            wallW = bestSeg.len;
+            const sdx = sp2[0] - sp1[0], sdz = -(sp2[1] - sp1[1]);
+            wallRot = Math.atan2(-sdz, sdx);
+          } else {
+            // No matching edge — fallback to centroid offset
+            wallRot = -az;
+            wallW = Math.min(wall.area / Math.max(wallH, 1), side * 0.98);
+            const off = side / 2 + 0.15;
+            wx = x + nx * off; wz = z + nzDir * off;
+          }
         } else {
+          const az = wall.azimuth * Math.PI / 180;
+          nx = Math.sin(az); nzDir = -Math.cos(az);
+          wallRot = -az;
           wallW = Math.min(wall.area / Math.max(wallH, 1), side * 0.98);
           const off = side / 2 + 0.15;
           wx = x + nx * off; wz = z + nzDir * off;
         }
 
-        const wallD = 0.5;  // wall thickness in ft
         const wallG = new THREE.BoxGeometry(wallW, wallH, wallD);
         const wallM = new THREE.MeshLambertMaterial({
-          color: surfColor(wall.type), transparent: true, opacity: 0.88
+          color: surfColor(wall.type), transparent: true, opacity: 0.88, side: THREE.DoubleSide
         });
         const wallMesh = new THREE.Mesh(wallG, wallM);
         wallMesh.position.set(wx, yBase + wallH / 2, wz);
-        wallMesh.rotation.y = Math.atan2(nx, nzDir);
-        wallMesh.userData = { type: 'wall', id: wall.id, data: wall };
+        wallMesh.rotation.y = wallRot;
+        wallMesh.castShadow = true;
+        wallMesh.receiveShadow = true;
+        const wLayer = surfType.includes('interior') || surfType.includes('demising') ? 'intwall' : 'extwall';
+        wallMesh.userData = { type: 'wall', id: wall.id, data: wall, layer: wLayer };
         buildingGroup.add(wallMesh);
         selectableObjects.push(wallMesh);
 
-        // Windows/doors on wall
-        const openD = 0.8;  // opening thickness — thicker than wall so it pops
+        // Wall area + height label
+        if (wall.area > 0) {
+          const wlText = `${Math.round(wall.area)} sf  |  ${wallH.toFixed(1)}' h`;
+          const wlColor = wLayer === 'extwall' ? '#ffe066' : '#cccccc';
+          const wLbl = makeDimLabel(wlText, wlColor);
+          const fwdLbl = wallD * 0.5 + 0.5;
+          wLbl.position.set(wx + nx * fwdLbl, yBase + wallH + 1.5, wz + nzDir * fwdLbl);
+          wLbl.userData = { layer: wLayer, zoneId: zone.id };
+          buildingGroup.add(wLbl);
+        }
+
+        // Windows/doors on wall — use real coordinates when available
+        const openD = 0.15;  // thin slab in front of wall
+        const geoOpenings = geometryData && geometryData.openings;
         (openByWall[wall.id] || []).forEach((o, oi) => {
-          const oSide = Math.sqrt(Math.max(o.area, 0.5));
-          const ow = Math.min(oSide, wallW * 0.75);
-          const oh = Math.min(oSide, wallH * 0.6);
+          // Size from actual area with realistic aspect ratio
+          const oArea = Math.max(o.area, 0.5);
+          const isDoor = (o.type || '').toLowerCase().includes('door');
+          const aspect = isDoor ? 0.43 : 1.5;  // w/h ratio: doors tall, windows wide
+          let ow = Math.sqrt(oArea * aspect);
+          let oh = oArea / ow;
+          // Clamp to wall bounds but preserve area
+          if (ow > wallW * 0.9) { ow = wallW * 0.9; oh = oArea / ow; }
+          if (oh > wallH * 0.85) { oh = wallH * 0.85; ow = oArea / oh; }
           const og = new THREE.BoxGeometry(ow, oh, openD);
           const om = new THREE.MeshLambertMaterial({
-            color: openColor(o.type), transparent: true, opacity: 0.65
+            color: openColor(o.type), transparent: true, opacity: 0.65, side: THREE.DoubleSide
           });
           const mesh = new THREE.Mesh(og, om);
-          const step = wallW / (openByWall[wall.id].length + 1);
-          const localX = (oi + 1) * step - wallW / 2;
-          const fwd = 0.12;
+
+          const geo_o = geoOpenings && geoOpenings[o.id];
+          let ox, oz, oRot = wallRot, onx = nx, onz = nzDir;
+          if (geo_o && geo_o.position_ft && geo_z && geo_z.vertices_ft) {
+            // Real CAD position — find nearest zone edge for rotation
+            ox = geo_o.position_ft[0];
+            oz = -geo_o.position_ft[1];
+            const oVerts = geo_z.vertices_ft;
+            let bestDist = Infinity;
+            for (let vi = 0; vi < oVerts.length; vi++) {
+              const vA = oVerts[vi], vB = oVerts[(vi + 1) % oVerts.length];
+              const edx = vB[0] - vA[0], edy = vB[1] - vA[1];
+              const eLen2 = edx * edx + edy * edy;
+              if (eLen2 < 0.25) continue;
+              // Project opening position onto edge segment
+              const t = Math.max(0, Math.min(1,
+                ((geo_o.position_ft[0] - vA[0]) * edx + (geo_o.position_ft[1] - vA[1]) * edy) / eLen2));
+              const cx = vA[0] + t * edx, cy = vA[1] + t * edy;
+              const d = Math.sqrt((geo_o.position_ft[0] - cx) ** 2 + (geo_o.position_ft[1] - cy) ** 2);
+              if (d < bestDist) {
+                bestDist = d;
+                const sdz = -(vB[1] - vA[1]);
+                const sdx2 = vB[0] - vA[0];
+                oRot = Math.atan2(-sdz, sdx2);
+                // Normal from wall azimuth or perpendicular to edge
+                const eLen = Math.sqrt(eLen2);
+                onx = -sdz / eLen;   // perpendicular X
+                onz = sdx2 / eLen;   // perpendicular Z (in Three.js)
+              }
+            }
+          } else if (geo_o && geo_o.position_ft) {
+            ox = geo_o.position_ft[0];
+            oz = -geo_o.position_ft[1];
+          } else {
+            // Fallback: evenly distribute along wall
+            const step = wallW / (openByWall[wall.id].length + 1);
+            const localX = (oi + 1) * step - wallW / 2;
+            const wallDirX = Math.sin(wallRot), wallDirZ = Math.cos(wallRot);
+            ox = wx + wallDirX * localX;
+            oz = wz + wallDirZ * localX;
+          }
+          // Push slightly in front of wall face
+          const fwd = wallD * 0.5 + openD * 0.5 + 0.05;
           mesh.position.set(
-            wx + nx * fwd + Math.cos(az) * localX,
+            ox + onx * fwd,
             yBase + wallH * 0.5,
-            wz + nzDir * fwd + Math.sin(az) * localX
+            oz + onz * fwd
           );
-          mesh.rotation.y = Math.atan2(nx, nzDir);
-          mesh.userData = { type: 'opening', id: o.id, data: o };
+          mesh.rotation.y = oRot;
+          const oLayer = isDoor ? 'door' : 'window';
+          mesh.userData = { type: 'opening', id: o.id, data: o, layer: oLayer };
           buildingGroup.add(mesh);
           selectableObjects.push(mesh);
+
+          // Opening area label
+          if (o.area > 0) {
+            const oLblColor = isDoor ? '#ff9999' : '#99ccff';
+            const oLbl = makeDimLabel(`${Math.round(o.area)} sf`, oLblColor);
+            oLbl.position.set(
+              ox + onx * (fwd + 0.5),
+              yBase + wallH * 0.5 + oh * 0.5 + 1.2,
+              oz + onz * (fwd + 0.5)
+            );
+            oLbl.userData = { layer: oLayer, zoneId: zone.id };
+            buildingGroup.add(oLbl);
+          }
         });
       }
     });
   });
 
+
+  // Tag all objects with their floor number for floor toggle
+  buildingGroup.traverse(child => {
+    if (!child.userData) return;
+    const ud = child.userData;
+    // Zone objects: use zone's floor directly
+    if (ud.data && ud.data.floor != null) {
+      ud.floor = ud.data.floor || 1;
+    }
+    // Wall/opening objects: use parent zone's floor
+    else if (ud.data && ud.data.zone_id && zoneFloor[ud.data.zone_id]) {
+      ud.floor = zoneFloor[ud.data.zone_id];
+    }
+    // Wire/label children: inherit from zone id
+    else if (ud.id && zoneFloor[ud.id]) {
+      ud.floor = zoneFloor[ud.id];
+    }
+    // Fallback: try to find zone from parent meshes
+    if (ud.floor == null && ud.zoneId) ud.floor = zoneFloor[ud.zoneId] || 1;
+  });
+
+  // Build floor toggle UI
+  const allFloors = [...new Set(data.zones.map(z => z.floor || 1))].sort((a,b) => a - b);
+  const ftDiv = document.getElementById('floor-toggles');
+  ftDiv.innerHTML = allFloors.length > 1
+    ? allFloors.map(fl => {
+        floorVisible[fl] = floorVisible[fl] !== false;  // default on
+        return `<div class="leg-item active" data-floor="${fl}" onclick="toggleFloor(this)"><span class="dot" style="background:#78909C"></span>Floor ${fl}</div>`;
+      }).join('')
+    : '';
 
   scene.add(buildingGroup);
   fitCamera(data.zones, pos);
@@ -676,6 +1197,60 @@ function status(msg, cls='') {
 }
 
 // ── Data loading ───────────────────────────────────────────────────────────
+window.browseFile = async function() {
+  status('Opening file picker…', 'busy');
+  try {
+    const r = await api('/api/browse');
+    if (r.error) { status(r.error, 'err'); return; }
+    if (!r.file) { status('Cancelled', ''); return; }
+    // Add to dropdown if not already there
+    const sel = document.getElementById('file-select');
+    const fname = r.file;
+    let found = false;
+    for (const opt of sel.options) { if (opt.value === fname) { found = true; break; } }
+    if (!found) {
+      const opt = document.createElement('option');
+      opt.value = fname; opt.textContent = fname;
+      sel.appendChild(opt);
+    }
+    sel.value = fname;
+    currentFile = fname;
+    await reloadData();
+  } catch(e) { status('Browse failed', 'err'); }
+};
+
+window.importJson = async function() {
+  status('Select a T24 JSON file…', 'busy');
+  try {
+    const r = await api('/api/browse-jsons');
+    if (r.error) { status(r.error, 'err'); return; }
+    if (!r.files || r.files.length === 0) { status('Cancelled', ''); return; }
+    // Prompt for floor number for each file
+    const floor = prompt('Floor number for this import:', '1');
+    if (floor === null) { status('Cancelled', ''); return; }
+    status(`Converting ${r.files.length} file(s)…`, 'busy');
+    const m = await api('/api/import-json', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ files: r.files, floor: parseInt(floor) || 1 })
+    });
+    if (m.error) { status('Import failed: ' + m.error, 'err'); return; }
+    const sel = document.getElementById('file-select');
+    const fname = m.file;
+    let found = false;
+    for (const opt of sel.options) { if (opt.value === fname) { found = true; break; } }
+    if (!found) {
+      const opt = document.createElement('option');
+      opt.value = fname; opt.textContent = fname;
+      sel.appendChild(opt);
+    }
+    sel.value = fname;
+    currentFile = fname;
+    await reloadData();
+    status(`Imported ${r.files.length} file(s) as Floor ${floor}`, 'ok');
+  } catch(e) { status('Import failed: ' + e, 'err'); }
+};
+
 window.reloadData = async function() {
   if (!currentFile) return;
   status('Loading…', 'busy');

@@ -1,0 +1,123 @@
+T24 Streamline Project — Audit TODO
+=====================================
+Edit this file to tell Claude what to fix. Mark items YES/NO/SKIP or add notes.
+When done, save the file and tell Claude to read it.
+
+=====================================
+CRITICAL (Fix Before Use)
+=====================================
+
+1. `atan2` doesn't exist in AutoLISP — TZ-WALL is completely broken.
+   Every wall click will crash. Fix: replace (atan2 nx ny) with (atan nx ny)
+   Location: T24_TakeOff.lsp:1067
+   FIX? [YES/NO]: Y
+
+2. `*push-error-using-command*` never popped — corrupts error handler stack
+   every time TZ-ZONE runs. Need to add (*pop-error-using-command*) on
+   normal exit and in the *error* handler.
+   Location: T24_TakeOff.lsp:588
+   FIX? [YES/NO]: idk what this is but seems reasonable go for it, watch for any unintended consequences
+
+3. Debug geometry drawn on every run — red circles + numbered text on
+   T24-DBG layer pollute the drawing permanently. TZ-RESET doesn't
+   clean them up. Options: remove debug code, or gate behind *TZ-DEBUG* flag.
+   Location: T24_TakeOff.lsp:383-571
+   FIX? [YES/NO]: no we can remove this at the end, its very useful for diagnosing pline door-collapse bugs
+   OPTION (remove / flag):
+
+=====================================
+HIGH (Silent Data Corruption)
+=====================================
+
+4. TZ-WIN never prompts for U-Factor or SHGC — hardcoded to 0.0.
+   All window exports have wrong energy values.
+   Fix: add prompts like TZ-SKY does, or prompt once per session.
+   Location: T24_TakeOff.lsp:905-932
+   FIX? [YES/NO]: its better this way, because it prompts us to manually decide later (low intervention, high consequence task)
+   NOTES:
+
+5. XDATA wipe bug — removing T24TOW xdata deletes ALL apps' xdata
+   from the entity, not just T24TOW.
+   Location: T24_TakeOff.lsp:111-119
+   FIX? [YES/NO]: i dont even know what this is but seems reasonable yes
+
+6. OPENING_ASSIGN_TOL defined but never enforced — openings 500" from
+   any wall are silently assigned to nearest wall with no warning.
+   Location: tz_to_excel.py:28
+   FIX? [YES/NO]:yeah it shouldn't do that
+
+=====================================
+MEDIUM (State Leaks & Workflow Gaps)
+=====================================
+
+7. No *error* handlers on TZ-WIN, TZ-DOOR, TZ-SKY, TZ-WALL.
+   Pressing ESC leaves CLAYER set to a T24 layer instead of user's layer.
+   Location: lines 905, 935, 965, 1093
+   FIX? [YES/NO]:yes, or maybe define layers for those tools 
+
+8. HPGAPTOL reset to 0.0 on error instead of restoring saved value.
+   Location: T24_TakeOff.lsp:596
+   FIX? [YES/NO]:yes
+
+9. Zone ID collisions — count-based IDs break on re-runs or manual
+   deletions. Could use a persistent session counter instead.
+   Location: lines 151-161
+   FIX? [YES/NO]:yes
+
+10. TZ-RESET leaves zone polylines — re-runs accumulate duplicates.
+    Add a TZ-RESET-FULL command or include zones in TZ-RESET.
+    Location: lines 1419-1432
+    FIX? [YES/NO]: im not actually sure what tz reset does, but this seems ok
+    OPTION (add TZ-RESET-FULL / include in TZ-RESET):
+
+11. No TZ-EDIT command — can't fix a room's ceiling height, name, etc.
+    without resetting everything.
+    FIX? [YES/NO]: yes, additionally make sure it updates the text inside the boundary, expand this tool to show ALL data gathered, (maybe make it small)
+    NOTES:
+
+12. No TZ-VALIDATE — no pre-export check for unassigned openings,
+    missing walls, duplicate IDs.
+    FIX? [YES/NO]: yes
+
+13. Hardcoded client path X:\25-373-23 Wesley Vermont\... in viewer server.
+    Location: viewer_server.py:10-12
+    FIX? [YES/NO]: yes, prompt for file selection
+
+14. Azimuth logic duplicated across 3 Python files with divergent entries.
+    Should be consolidated into a shared module.
+    Location: generate_gbxml.py, viewer_server.py, tz_to_excel.py
+    FIX? [YES/NO]:yes, but check after to make sure nothing breaks
+
+15. Climate Zone & Front Orientation never written to gbXML output.
+    Location: generate_gbxml.py:272-275
+    FIX? [YES/NO]:fix, prompt user to input data on use of tz-zone
+
+16. tz-freeze-door-layers defined but never called — door swings may
+    interfere with boundary tracing.
+    Location: lines 267-272
+    FIX? [YES/NO]:delete it, doors are required in most cases
+    OPTION (wire it in / delete it):
+
+17. PROGRESS.md has wrong file path (missing EGI AUTOMATIONS parent dir).
+    Location: PROGRESS.md:95
+    FIX? [YES/NO]:yes
+
+=====================================
+LOW
+=====================================
+
+18. TZ-LISTDATA hardcodes 144.0 instead of using *TZ-UNIT-FT* constant.
+    Location: line 1189
+    FIX? [YES/NO]:yes
+
+19. Dead `ang` calculation in TZ-SHOWVERTS (immediately overwritten).
+    Location: lines 1217-1222
+    FIX? [YES/NO]:yes
+
+20. entlast used without checking it changed after tz-make-circle.
+    Location: lines 919, 948, 986, 1146
+    FIX? [YES/NO]:yes
+
+21. Named view TZ-BOUNDARY-VIEW not guarded against orphaning on error.
+    Location: lines 327-333
+    FIX? [YES/NO]:yes

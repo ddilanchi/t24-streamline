@@ -21,21 +21,7 @@ from openpyxl.utils import get_column_letter
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Orientation name -> azimuth degrees (clockwise from North)
-ORIENTATION_MAP = {
-    "north": 0,    "n": 0,
-    "northeast": 45,  "ne": 45,
-    "east": 90,    "e": 90,
-    "southeast": 135, "se": 135,
-    "south": 180,  "s": 180,
-    "southwest": 225, "sw": 225,
-    "west": 270,   "w": 270,
-    "northwest": 315, "nw": 315,
-    "front": 180,
-    "back": 0,
-    "left": 90,
-    "right": 270,
-}
+from t24_utils import ORIENTATION_MAP, parse_azimuth, az_to_cardinal
 
 SURFACE_TYPE_MAP = {
     "exterior wall": "ExteriorWall",
@@ -47,7 +33,7 @@ SURFACE_TYPE_MAP = {
     "demising":      "InteriorWall",
     "roof":          "Roof",
     "ceiling":       "Ceiling",
-    "interior ceiling": "InteriorCeiling",
+    "interior ceiling": "Ceiling",
     "exposed floor": "ExposedFloor",
     "slab":          "SlabOnGrade",
     "slab on grade": "SlabOnGrade",
@@ -232,12 +218,7 @@ def create_template(path: str):
 # ---------------------------------------------------------------------------
 
 def resolve_azimuth(orientation_str) -> float:
-    if orientation_str in ("", None):
-        return 0.0
-    try:
-        return float(orientation_str)
-    except (ValueError, TypeError):
-        return float(ORIENTATION_MAP.get(str(orientation_str).strip().lower(), 0))
+    return parse_azimuth(orientation_str)
 
 def resolve_surface_type(type_str) -> str:
     return SURFACE_TYPE_MAP.get(str(type_str).strip().lower(), "ExteriorWall")
@@ -270,9 +251,11 @@ def generate_gbxml(xlsx_path: str, out_path: str):
     ws_proj = wb["Project"]
     def proj(r): return str(ws_proj.cell(row=r, column=2).value or "")
 
-    project_name  = proj(2)
-    address       = proj(3)
-    building_type = proj(5) or "MultiFamily"
+    project_name    = proj(2)
+    address         = proj(3)
+    climate_zone    = proj(4)
+    building_type   = proj(5) or "MultiFamily"
+    front_orient    = proj(6)
 
     # -- Zones --
     ws_zones = wb["Zones"]
@@ -288,7 +271,7 @@ def generate_gbxml(xlsx_path: str, out_path: str):
         zones.append({
             "id":        zid,
             "name":      str(name or zid),
-            "area":      float(area or 0),
+            "area":      math.ceil(float(area or 0)),
             "height":    h,
             "cond_type": resolve_condition_type(ctype or "Conditioned"),
             "occ_type":  str(occ or "").strip(),
@@ -304,7 +287,7 @@ def generate_gbxml(xlsx_path: str, out_path: str):
         wid  = str(wid).strip().replace(" ", "_")
         zid  = str(zid or "").strip().replace(" ", "_")
         stype = resolve_surface_type(wtype or "Exterior Wall")
-        gross_area = float(area or 0)
+        gross_area = math.ceil(float(area or 0))
         h = zone_height.get(zid, 9.0)
 
         # Rectangular geometry dimensions
@@ -343,7 +326,7 @@ def generate_gbxml(xlsx_path: str, out_path: str):
             "wall_id": str(wall_id or "").strip().replace(" ", "_"),
             "name":    str(name or oid),
             "type":    resolve_opening_type(otype or "Window"),
-            "area":    float(area or 0),
+            "area":    math.ceil(float(area or 0)),
             "ufactor": float(ufactor) if ufactor not in ("", None) else None,
             "shgc":    float(shgc)    if shgc    not in ("", None) else None,
         })
@@ -383,8 +366,11 @@ def generate_gbxml(xlsx_path: str, out_path: str):
             ET.SubElement(wt, "SHGC").text = str(shgc)
 
     campus = ET.SubElement(root, "Campus", {"id": "campus-1"})
-    ET.SubElement(campus, "Name").text     = project_name
-    ET.SubElement(campus, "Location").text = address
+    ET.SubElement(campus, "Name").text = project_name
+    if address:
+        ET.SubElement(campus, "Location").text = address
+    if climate_zone:
+        ET.SubElement(campus, "ClimateZone").text = climate_zone
 
     total_area = sum(z["area"] for z in zones)
     building = ET.SubElement(campus, "Building", {
@@ -393,12 +379,21 @@ def generate_gbxml(xlsx_path: str, out_path: str):
     })
     ET.SubElement(building, "Name").text = project_name
     ET.SubElement(building, "Area").text = str(total_area)
+    if front_orient:
+        ET.SubElement(building, "Azimuth").text = str(resolve_azimuth(front_orient))
 
-    # Spaces
+    # Spaces — use room name as the id so EnergyPro shows room names
+    # Build a map from zone_id -> sanitized name for cross-references
+    zone_id_to_name = {}
     for z in zones:
+        safe_name = z["name"].replace(" ", "_").replace("/", "-")
+        zone_id_to_name[z["id"]] = safe_name
+
+    for z in zones:
+        safe_name = zone_id_to_name[z["id"]]
         attrs = {
-            "id":           z["id"],
-            "zoneIdRef":    z["id"],
+            "id":           safe_name,
+            "zoneIdRef":    safe_name,
             "conditionType": z["cond_type"],
         }
         if z["occ_type"]:
@@ -421,9 +416,11 @@ def generate_gbxml(xlsx_path: str, out_path: str):
             ET.SubElement(surf, "CADObjectId").text = w["construction"]
 
         if w["zone_id"]:
-            ET.SubElement(surf, "AdjacentSpaceId", {"spaceIdRef": w["zone_id"]})
+            space_ref = zone_id_to_name.get(w["zone_id"], w["zone_id"])
+            ET.SubElement(surf, "AdjacentSpaceId", {"spaceIdRef": space_ref})
         if w["adj_zone"]:
-            ET.SubElement(surf, "AdjacentSpaceId", {"spaceIdRef": w["adj_zone"]})
+            adj_ref = zone_id_to_name.get(w["adj_zone"], w["adj_zone"])
+            ET.SubElement(surf, "AdjacentSpaceId", {"spaceIdRef": adj_ref})
 
         # RectangularGeometry — EnergyPro reads area and orientation from here
         add_rect_geometry(surf, w["azimuth"], w["tilt"], w["rg_width"], w["rg_height"])

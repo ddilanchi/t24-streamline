@@ -3,8 +3,9 @@ tz_to_excel.py  –  T24 TakeOff Wizard: JSON → Excel + geometry sidecar
 
 Usage:
     python tz_to_excel.py "path/to/drawing_t24.json"
+    python tz_to_excel.py file1.json file2.json file3.json   (merge all into one Excel)
 
-Outputs (same folder as input):
+Outputs (same folder as first input):
     drawing_t24_takeoff.xlsx   – ready for generate_gbxml.py
     drawing_t24_geometry.json  – real XY coordinates for the 3D viewer
 
@@ -15,13 +16,15 @@ How it works:
     4. Associates windows/doors with their nearest wall segment
     5. Associates skylights with their zone (point-in-polygon)
     6. Writes the Excel template and a geometry JSON sidecar
+    7. Multiple JSONs: merges zones/walls/openings from all files
 """
 
-import sys, os, json, math
+import sys, os, json, math, glob
 import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from t24_utils import az_to_cardinal
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 IN_PER_FT = 12.0          # Drawing units are inches
@@ -76,6 +79,8 @@ def process(json_path):
     zones    = data.get('zones', [])
     openings = data.get('openings', [])
     raw_walls = data.get('walls', [])
+    climate_zone    = data.get('climate_zone', '')
+    front_orient    = data.get('front_orientation', 'South')
 
     # ── Read wall markers placed by TZ-WALL command ───────────────────────
     all_walls = []
@@ -138,42 +143,50 @@ def process(json_path):
         shgc    = o.get('shgc', 0)
         oid     = o.get('id', 'O-???')
 
-        # Find containing zone (point-in-polygon)
+        # Find containing zone (point-in-polygon, with nearest-zone fallback
+        # for openings placed on or just outside the boundary edge)
         host_zone = None
         for zone in zones:
             if point_in_polygon(pos, zone['vertices']):
                 host_zone = zone['id']
                 break
 
-        if otype == 'Skylight':
-            # Skylight → find roof wall of the zone
-            if host_zone:
-                wall_id = f"{host_zone}-ROOF"
+        if not host_zone:
+            # Fallback: find nearest zone boundary (openings on edges fail PIP)
+            best_zone_dist = float('inf')
+            for zone in zones:
+                verts = zone['vertices']
+                for k in range(len(verts)):
+                    p1 = verts[k]
+                    p2 = verts[(k + 1) % len(verts)]
+                    dist, _ = pt_to_seg_dist(pos, p1, p2)
+                    if dist < best_zone_dist:
+                        best_zone_dist = dist
+                        host_zone = zone['id']
+            if host_zone and best_zone_dist < OPENING_ASSIGN_TOL:
+                print(f"  NOTE: {otype} {oid} on zone edge — assigned to {host_zone} (dist={best_zone_dist/12:.1f}ft)")
             else:
-                wall_id = 'UNASSIGNED'
+                host_zone = None
+
+        if not host_zone:
+            print(f"  WARNING: {otype} {oid} is not inside any zone boundary — marked UNASSIGNED")
+            wall_id = 'UNASSIGNED'
+        elif otype == 'Skylight':
+            # Skylight → find roof wall of the zone
+            wall_id = f"{host_zone}-ROOF"
         else:
-            # Window / Door → find nearest vertical wall segment
+            # Window / Door → find nearest vertical wall segment in same zone
             best_wall = None
             best_dist = float('inf')
             for w in all_walls:
                 if w['p1'] is None:   # skip horiz placeholders
                     continue
-                # Prefer walls in the same zone, but allow any if no match
-                if host_zone and w['zone_id'] != host_zone:
+                if w['zone_id'] != host_zone:
                     continue
                 dist, _ = pt_to_seg_dist(pos, w['p1'], w['p2'])
                 if dist < best_dist:
                     best_dist = dist
                     best_wall = w['wall_id']
-            # Fallback: try all walls if no same-zone wall found
-            if best_wall is None:
-                for w in all_walls:
-                    if w['p1'] is None:
-                        continue
-                    dist, _ = pt_to_seg_dist(pos, w['p1'], w['p2'])
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_wall = w['wall_id']
             wall_id = best_wall or 'UNASSIGNED'
 
         assigned_openings.append({
@@ -184,9 +197,10 @@ def process(json_path):
             'area_sqft': area,
             'ufactor': uf if uf else None,
             'shgc':    shgc if shgc else None,
+            'position': pos,
         })
 
-    return zones, all_walls, assigned_openings
+    return zones, all_walls, assigned_openings, climate_zone, front_orient
 
 
 def az_to_name(az):
@@ -197,22 +211,10 @@ def az_to_name(az):
     az = az % 360
     return min(dirs, key=lambda d: abs(((az - d[0] + 180) % 360) - 180))[1]
 
-def az_to_cardinal(az):
-    """Return compass direction string for the azimuth."""
-    az = az % 360
-    if az < 22.5 or az >= 337.5: return 'North'
-    if az < 67.5:  return 'NE'
-    if az < 112.5: return 'East'
-    if az < 157.5: return 'SE'
-    if az < 202.5: return 'South'
-    if az < 247.5: return 'SW'
-    if az < 292.5: return 'West'
-    return 'NW'
-
 
 # ── Excel writer ──────────────────────────────────────────────────────────────
 
-def write_excel(json_path, zones, walls, openings):
+def write_excel(json_path, zones, walls, openings, climate_zone='', front_orient='South'):
     out_dir  = os.path.dirname(json_path)
     base     = os.path.splitext(os.path.basename(json_path))[0].replace('_t24', '')
     out_path = os.path.join(out_dir, base + '_t24_takeoff.xlsx')
@@ -239,61 +241,82 @@ def write_excel(json_path, zones, walls, openings):
     for r, (lbl, val) in enumerate([
         ("Project Name",      os.path.splitext(os.path.basename(json_path))[0]),
         ("Address",           ""),
-        ("Climate Zone",      ""),
+        ("Climate Zone",      climate_zone),
         ("Building Type",     "MultiFamily"),
-        ("Front Orientation", "South"),
+        ("Front Orientation", front_orient),
         ("Standards Version", "2022"),
     ], start=2):
         ws.cell(r, 1, lbl).fill = HDR_FILL
         ws.cell(r, 1).font = HDR_FONT
         ws.cell(r, 2, val).fill = VAL_FILL
 
+    # Check if multi-source (multiple drawings merged)
+    multi = any('source' in z for z in zones)
+
     # ── Zones sheet ───────────────────────────────────────────────────────
     # Column order must match generate_gbxml.py expected input
     ws2 = wb.create_sheet("Zones")
-    hdr(ws2, [
+    zone_cols = [
         ("Zone ID", 18), ("Zone Name", 26),
         ("Floor Area (sqft)", 18), ("Ceiling Height (ft)", 18),
         ("Condition Type", 26), ("Occupancy Type", 26),
-    ])
+    ]
+    if multi:
+        zone_cols.append(("Source Drawing", 30))
+    hdr(ws2, zone_cols)
     for r, z in enumerate(zones, 2):
-        for ci, val in enumerate([
+        vals = [
             z['id'], z.get('name', z['id']),
             round(z.get('area_sqft', 0), 1),
             z.get('ceiling_ht_ft', 9),
             z.get('condition', 'Conditioned'),
             z.get('occupancy', ''),
-        ], 1):
+        ]
+        if multi:
+            vals.append(z.get('source', ''))
+        for ci, val in enumerate(vals, 1):
             ws2.cell(r, ci, val)
 
     # ── Walls sheet ───────────────────────────────────────────────────────
     ws3 = wb.create_sheet("Walls")
-    hdr(ws3, [
+    wall_cols = [
         ("Wall ID", 20), ("Zone ID", 16), ("Wall Name", 22),
         ("Type", 28), ("Orientation", 16), ("Gross Area (sqft)", 18),
         ("Construction", 30), ("Adjacent Zone ID", 22),
-    ])
+    ]
+    if multi:
+        wall_cols.append(("Source Drawing", 30))
+    hdr(ws3, wall_cols)
     for r, w in enumerate(walls, 2):
-        for ci, val in enumerate([
+        vals = [
             w['wall_id'], w['zone_id'], w['name'],
             w['type'], w.get('orientation', ''),
             w['area_sqft'], '', w.get('adj_zone', ''),
-        ], 1):
+        ]
+        if multi:
+            vals.append(w.get('source', ''))
+        for ci, val in enumerate(vals, 1):
             ws3.cell(r, ci, val)
 
     # ── Openings sheet ────────────────────────────────────────────────────
     ws4 = wb.create_sheet("Openings")
-    hdr(ws4, [
+    open_cols = [
         ("Opening ID", 20), ("Wall ID", 20), ("Opening Name", 24),
         ("Type", 20), ("Area (sqft)", 14), ("U-Factor", 12), ("SHGC", 10),
-    ])
+    ]
+    if multi:
+        open_cols.append(("Source Drawing", 30))
+    hdr(ws4, open_cols)
     for r, o in enumerate(openings, 2):
-        for ci, val in enumerate([
+        vals = [
             o['id'], o['wall_id'], o['name'], o['type'],
             o['area_sqft'],
             o['ufactor'] if o['ufactor'] else '',
             o['shgc']    if o['shgc']    else '',
-        ], 1):
+        ]
+        if multi:
+            vals.append(o.get('source', ''))
+        for ci, val in enumerate(vals, 1):
             ws4.cell(r, ci, val)
 
     wb.save(out_path)
@@ -327,12 +350,8 @@ def write_geometry(json_path, zones, walls, openings):
             'azimuth': round(w['azimuth'], 1),
         }
 
-    with open(json_path) as f:
-        orig = json.load(f)
-    pos_map = {o['id']: o.get('position', [0,0]) for o in orig.get('openings', [])}
-
     for o in openings:
-        pos = pos_map.get(o['id'], [0, 0])
+        pos = o.get('position', [0, 0])
         geo['openings'][o['id']] = {
             'position_ft': [in2ft(pos[0]), in2ft(pos[1])],
             'type':        o['type'],
@@ -347,23 +366,68 @@ def write_geometry(json_path, zones, walls, openings):
 # ── Entry point ───────────────────────────────────────────────────────────────
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python tz_to_excel.py <drawing_t24.json>")
+        print("Usage: python tz_to_excel.py <file.json> [file2.json ...]")
+        print("       python tz_to_excel.py <directory>  (finds all *_t24.json)")
         sys.exit(1)
 
-    json_path = sys.argv[1]
-    if not os.path.exists(json_path):
-        print(f"File not found: {json_path}")
-        sys.exit(1)
+    # If a single directory is given, find all *_t24.json files in it
+    if len(sys.argv) == 2 and os.path.isdir(sys.argv[1]):
+        json_paths = sorted(glob.glob(os.path.join(sys.argv[1], "*_t24.json")))
+        if not json_paths:
+            print(f"No *_t24.json files found in: {sys.argv[1]}")
+            sys.exit(1)
+        print(f"Found {len(json_paths)} JSON files in {sys.argv[1]}")
+    else:
+        json_paths = sys.argv[1:]
 
-    print(f"Reading: {json_path}")
-    zones, walls, openings = process(json_path)
+    for p in json_paths:
+        if not os.path.exists(p):
+            print(f"File not found: {p}")
+            sys.exit(1)
 
-    print(f"  {len(zones)} zones, {len(walls)} wall segments, {len(openings)} openings")
+    # Process all files and merge
+    all_zones = []
+    all_walls = []
+    all_openings = []
+    climate_zone = ''
+    front_orient = 'South'
 
-    xlsx = write_excel(json_path, zones, walls, openings)
+    for jp in json_paths:
+        print(f"Reading: {jp}")
+        z, w, o, cz, fo = process(jp)
+        dwg_name = os.path.splitext(os.path.basename(jp))[0].replace('_t24', '')
+
+        # Tag each item with its source drawing
+        for item in z:
+            item['source'] = dwg_name
+        for item in w:
+            item['source'] = dwg_name
+        for item in o:
+            item['source'] = dwg_name
+
+        all_zones.extend(z)
+        all_walls.extend(w)
+        all_openings.extend(o)
+        # Use climate zone / orientation from first file
+        if not climate_zone and cz:
+            climate_zone = cz
+            front_orient = fo
+
+        print(f"  {len(z)} zones, {len(w)} wall segments, {len(o)} openings")
+
+    print(f"\nTotal: {len(all_zones)} zones, {len(all_walls)} walls, {len(all_openings)} openings")
+
+    # Use first file path for output naming
+    primary_path = json_paths[0]
+    if len(json_paths) > 1:
+        # For multi-file, create a dummy path for naming only (file doesn't need to exist)
+        out_dir = os.path.dirname(os.path.abspath(primary_path))
+        primary_path = os.path.join(out_dir, "t24_combined_t24.json")
+
+    xlsx = write_excel(primary_path, all_zones, all_walls, all_openings, climate_zone, front_orient)
     print(f"Excel:    {xlsx}")
 
-    geo = write_geometry(json_path, zones, walls, openings)
+    geo = write_geometry(primary_path, all_zones, all_walls, all_openings)
     print(f"Geometry: {geo}")
     print("Done. Review Excel, fill in Construction column, then run generate_gbxml.py.")
 
