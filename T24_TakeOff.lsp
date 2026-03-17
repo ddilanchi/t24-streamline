@@ -260,13 +260,15 @@
 ;; ── Session setup dialog ─────────────────────────────────────────────────────
 ;; Popup dialog to collect session defaults before TZ-ZONE starts.
 ;; Sets outer-scope variables: ceil-ht, floor, gap-tol, *TZ-CLIMATE-ZONE*, *TZ-NORTH-ANGLE*
-;; All fields persist as globals — values carry over between TZ-ZONE runs
-;; until AutoCAD is closed.  Front orientation is always 0 (EnergyPro default).
+;; Drawing-level settings (climate zone, north arrow) persist as globals.
+;; Per-session settings (ceiling ht, floor, gap tol) also remember last-used
+;; values for convenience but are expected to change between runs.
+;; Front orientation is always 0 (EnergyPro default).
 (defun tz-session-dialog ( / dcl-path f dcl-id status)
-  ;; Initialize globals on first run only
-  (if (null *TZ-CEIL-HT*)       (setq *TZ-CEIL-HT*       9.0))
-  (if (null *TZ-FLOOR*)         (setq *TZ-FLOOR*         1))
-  (if (null *TZ-GAP-TOL*)       (setq *TZ-GAP-TOL*       1.0))
+  ;; Initialize on first run only — remembers last-used values for pre-fill
+  (if (null *TZ-LAST-CEIL*)     (setq *TZ-LAST-CEIL*     9.0))
+  (if (null *TZ-LAST-FLOOR*)    (setq *TZ-LAST-FLOOR*    1))
+  (if (null *TZ-LAST-GAP*)      (setq *TZ-LAST-GAP*      1.0))
   (if (null *TZ-CLIMATE-ZONE*)  (setq *TZ-CLIMATE-ZONE*  "3"))
   (if (null *TZ-NORTH-ANGLE*)   (setq *TZ-NORTH-ANGLE*   0.0))
 
@@ -298,17 +300,17 @@
     (progn (princ "\n[T24] Dialog load failed, using defaults.") nil)
     (progn
       (new_dialog "tz_sess" dcl-id)
-      ;; Pre-fill with persistent values
-      (set_tile "ceil"  (rtos *TZ-CEIL-HT* 2 1))
-      (set_tile "floor" (itoa *TZ-FLOOR*))
-      (set_tile "gap"   (rtos *TZ-GAP-TOL* 2 1))
+      ;; Pre-fill with last-used / persistent values
+      (set_tile "ceil"  (rtos *TZ-LAST-CEIL* 2 1))
+      (set_tile "floor" (itoa *TZ-LAST-FLOOR*))
+      (set_tile "gap"   (rtos *TZ-LAST-GAP* 2 1))
       (set_tile "czone" *TZ-CLIMATE-ZONE*)
       (set_tile "north" (rtos *TZ-NORTH-ANGLE* 2 1))
 
-      ;; Callbacks
-      (action_tile "accept" "(setq *TZ-CEIL-HT*      (atof (get_tile \"ceil\"))
-                                   *TZ-FLOOR*         (atoi (get_tile \"floor\"))
-                                   *TZ-GAP-TOL*       (atof (get_tile \"gap\"))
+      ;; Callbacks — save all values; ceiling/floor/gap remembered for next pre-fill
+      (action_tile "accept" "(setq *TZ-LAST-CEIL*    (atof (get_tile \"ceil\"))
+                                   *TZ-LAST-FLOOR*   (atoi (get_tile \"floor\"))
+                                   *TZ-LAST-GAP*     (atof (get_tile \"gap\"))
                                    *TZ-CLIMATE-ZONE*  (get_tile \"czone\")
                                    *TZ-NORTH-ANGLE*   (atof (get_tile \"north\")))
                               (done_dialog 1)")
@@ -320,15 +322,15 @@
 
       ;; Validate
       (if (= status 0) (progn (princ "\n[T24] Cancelled.") (exit)))
-      (if (<= *TZ-CEIL-HT* 0)          (setq *TZ-CEIL-HT* 9.0))
-      (if (<= *TZ-FLOOR* 0)            (setq *TZ-FLOOR* 1))
-      (if (<= *TZ-GAP-TOL* 0)          (setq *TZ-GAP-TOL* 1.0))
+      (if (<= *TZ-LAST-CEIL* 0)        (setq *TZ-LAST-CEIL* 9.0))
+      (if (<= *TZ-LAST-FLOOR* 0)       (setq *TZ-LAST-FLOOR* 1))
+      (if (<= *TZ-LAST-GAP* 0)         (setq *TZ-LAST-GAP* 1.0))
       (if (= *TZ-CLIMATE-ZONE* "")     (setq *TZ-CLIMATE-ZONE* "3"))
 
       ;; Copy to local vars used by the rest of tz-zone
-      (setq ceil-ht *TZ-CEIL-HT*
-            floor   *TZ-FLOOR*
-            gap-tol *TZ-GAP-TOL*)
+      (setq ceil-ht *TZ-LAST-CEIL*
+            floor   *TZ-LAST-FLOOR*
+            gap-tol *TZ-LAST-GAP*)
     )))
 
 ;; ── Popup choice dialog (appears near cursor) ───────────────────────────────
