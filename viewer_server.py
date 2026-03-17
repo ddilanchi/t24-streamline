@@ -78,7 +78,7 @@ def read_data(path):
         "address": str(p.cell(3,2).value or ""),
         "climate_zone": str(p.cell(4,2).value or ""),
         "building_type": str(p.cell(5,2).value or "MultiFamily"),
-        "front_orientation": str(p.cell(6,2).value or "South"),
+        "front_orientation": flt(p.cell(6,2).value, 0),
         "standards_version": str(p.cell(7,2).value or "2022"),
     }
     zones = []

@@ -259,7 +259,7 @@
 
 ;; ── Session setup dialog ─────────────────────────────────────────────────────
 ;; Popup dialog to collect session defaults before TZ-ZONE starts.
-;; Sets outer-scope variables: ceil-ht, floor, gap-tol, *TZ-CLIMATE-ZONE*, *TZ-FRONT-ORIENT*
+;; Sets outer-scope variables: ceil-ht, floor, gap-tol, *TZ-CLIMATE-ZONE*, *TZ-FRONT-ORIENT*, *TZ-NORTH-ANGLE*
 (defun tz-session-dialog ( / dcl-path f dcl-id status)
   (setq dcl-path (vl-filename-mktemp "tz_sess" nil ".dcl"))
   (setq f (open dcl-path "w"))
@@ -274,7 +274,8 @@
   (write-line "      : edit_box { key = \"gap\";    label = \"Gap Tolerance (in)\";  edit_width = 8; value = \"1.0\"; }" f)
   (write-line "      : edit_box { key = \"czone\";  label = \"Climate Zone\";        edit_width = 8; value = \"3\"; }" f)
   (write-line "    }" f)
-  (write-line "    : popup_list { key = \"orient\"; label = \"Front Orientation\"; width = 20; }" f)
+  (write-line "    : edit_box { key = \"north\"; label = \"North Arrow Angle (deg in drawing)\"; edit_width = 8; value = \"0.0\"; }" f)
+  (write-line "    : popup_list { key = \"orient\"; label = \"Front Orientation\"; width = 24; }" f)
   (write-line "    : spacer { height = 0.3; }" f)
   (write-line "    : row {" f)
   (write-line "      : button { key = \"accept\"; label = \"OK\"; is_default = true; width = 12; fixed_width = true; }" f)
@@ -294,20 +295,23 @@
       (set_tile "floor" (itoa floor))
       (set_tile "gap"   (rtos gap-tol 2 1))
       (set_tile "czone" *TZ-CLIMATE-ZONE*)
-      ;; Populate orientation dropdown
+      (set_tile "north" (rtos *TZ-NORTH-ANGLE* 2 1))
+      ;; Populate orientation dropdown — degrees, 0 = North (EnergyPro default)
       (start_list "orient")
-      (foreach o '("North" "NW" "West" "SW" "South" "SE" "East" "NE")
+      (foreach o '("North (0)" "NE (45)" "East (90)" "SE (135)"
+                   "South (180)" "SW (225)" "West (270)" "NW (315)")
         (add_list o))
       (end_list)
-      (set_tile "orient" "0")  ; default North
+      (set_tile "orient" "0")  ; default North (0)
 
       ;; Callbacks
       (action_tile "accept" "(setq ceil-ht (atof (get_tile \"ceil\"))
                                    floor   (atoi (get_tile \"floor\"))
                                    gap-tol (atof (get_tile \"gap\"))
                                    *TZ-CLIMATE-ZONE* (get_tile \"czone\")
+                                   *TZ-NORTH-ANGLE* (atof (get_tile \"north\"))
                                    *TZ-FRONT-ORIENT* (nth (atoi (get_tile \"orient\"))
-                                     '(\"North\" \"NW\" \"West\" \"SW\" \"South\" \"SE\" \"East\" \"NE\")))
+                                     '(0 45 90 135 180 225 270 315)))
                               (done_dialog 1)")
       (action_tile "cancel" "(done_dialog 0)")
 
@@ -321,7 +325,8 @@
       (if (<= floor 0) (setq floor 1))
       (if (<= gap-tol 0) (setq gap-tol 1.0))
       (if (= *TZ-CLIMATE-ZONE* "") (setq *TZ-CLIMATE-ZONE* "3"))
-      (if (null *TZ-FRONT-ORIENT*) (setq *TZ-FRONT-ORIENT* "North"))
+      (if (null *TZ-FRONT-ORIENT*) (setq *TZ-FRONT-ORIENT* 0))
+      (if (null *TZ-NORTH-ANGLE*) (setq *TZ-NORTH-ANGLE* 0.0))
     )))
 
 ;; ── Popup choice dialog (appears near cursor) ───────────────────────────────
@@ -819,7 +824,7 @@
 
   ;; ── Session setup dialog ────────────────────────────────────────────────────
   (setq ceil-ht 9.0  floor 1  gap-tol 1.0
-        *TZ-CLIMATE-ZONE* "3"  *TZ-FRONT-ORIENT* "North")
+        *TZ-CLIMATE-ZONE* "3"  *TZ-FRONT-ORIENT* 0  *TZ-NORTH-ANGLE* 0.0)
   (tz-session-dialog)  ;; populates the above via dialog
 
   ;; Condition and occupancy default to generic values — sort out in EnergyPro
@@ -828,7 +833,9 @@
 
   (princ (strcat "\n[T24] Session: " (rtos ceil-ht 2 1) "' ceiling  |  Floor " (itoa floor)
                  "  |  Gap tol " (rtos gap-tol 2 1) "\""
-                 "  |  CZ " *TZ-CLIMATE-ZONE* "  |  " *TZ-FRONT-ORIENT*))
+                 "  |  CZ " *TZ-CLIMATE-ZONE*
+                 "  |  Front " (itoa (fix *TZ-FRONT-ORIENT*)) (chr 176)
+                 "  |  North " (rtos *TZ-NORTH-ANGLE* 2 1) (chr 176)))
   (princ "\n[T24] Now click room name text for each zone. Press Enter when done.")
 
   ;; ── Main room loop ────────────────────────────────────────────────────────
@@ -1472,8 +1479,11 @@
         (setq i (1+ i)))
       best-id)))
 
-;; Compute wall azimuth: right-perpendicular of p1→p2, CW from North
-(defun tz-wall-azimuth (p1 p2 / dx dy len nx ny az)
+;; Compute wall azimuth: right-perpendicular of p1→p2, CW from true North.
+;; Applies *TZ-NORTH-ANGLE* correction: if the north arrow in the drawing
+;; is rotated, raw AutoCAD angles are offset from true north.
+;; true_azimuth = (raw_azimuth - north_arrow_angle) mod 360
+(defun tz-wall-azimuth (p1 p2 / dx dy len nx ny az north-adj)
   (setq dx (- (car p2) (car p1))
         dy (- (cadr p2) (cadr p1))
         len (sqrt (+ (* dx dx) (* dy dy))))
@@ -1484,6 +1494,9 @@
             ny (/ (- dx) len)
             az (* (/ 180.0 pi) (atan nx ny)))
       (if (< az 0.0) (setq az (+ az 360.0)))
+      ;; Correct for north arrow rotation
+      (setq north-adj (if *TZ-NORTH-ANGLE* *TZ-NORTH-ANGLE* 0.0))
+      (setq az (rem (+ (- az north-adj) 360.0) 360.0))
       az)))
 
 ;; Read zone-id from a polyline's XDATA
@@ -2226,7 +2239,8 @@
 
   (write-line "{" fp)
   (write-line (strcat "  \"climate_zone\": " (tz-jstr (if *TZ-CLIMATE-ZONE* *TZ-CLIMATE-ZONE* "3")) ",") fp)
-  (write-line (strcat "  \"front_orientation\": " (tz-jstr (if *TZ-FRONT-ORIENT* *TZ-FRONT-ORIENT* "North")) ",") fp)
+  (write-line (strcat "  \"front_orientation\": " (tz-jnum (if *TZ-FRONT-ORIENT* *TZ-FRONT-ORIENT* 0)) ",") fp)
+  (write-line (strcat "  \"north_arrow_angle\": " (tz-jnum (if *TZ-NORTH-ANGLE* *TZ-NORTH-ANGLE* 0.0)) ",") fp)
   (write-line "  \"zones\": [" fp)
 
   ;; ── Zones ────────────────────────────────────────────────────────────────

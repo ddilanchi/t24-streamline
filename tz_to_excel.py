@@ -80,7 +80,7 @@ def process(json_path):
     openings = data.get('openings', [])
     raw_walls = data.get('walls', [])
     climate_zone    = data.get('climate_zone', '')
-    front_orient    = data.get('front_orientation', 'South')
+    front_orient    = data.get('front_orientation', 0)
 
     # ── Read wall markers placed by TZ-WALL command ───────────────────────
     all_walls = []
@@ -214,7 +214,7 @@ def az_to_name(az):
 
 # ── Excel writer ──────────────────────────────────────────────────────────────
 
-def write_excel(json_path, zones, walls, openings, climate_zone='', front_orient='South'):
+def write_excel(json_path, zones, walls, openings, climate_zone='', front_orient=0):
     out_dir  = os.path.dirname(json_path)
     base     = os.path.splitext(os.path.basename(json_path))[0].replace('_t24', '')
     out_path = os.path.join(out_dir, base + '_t24_takeoff.xlsx')
@@ -390,7 +390,7 @@ def main():
     all_walls = []
     all_openings = []
     climate_zone = ''
-    front_orient = 'South'
+    front_orient = 0
 
     for jp in json_paths:
         print(f"Reading: {jp}")
