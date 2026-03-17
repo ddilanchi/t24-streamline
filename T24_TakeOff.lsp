@@ -332,12 +332,14 @@
   (write-line "tz_bnd : dialog {" f)
   (write-line "  label = \"BOUNDARY Failed\";" f)
   (write-line "  : column {" f)
-  (write-line "    : button { key = \"retry\";  label = \"&Retry at new point\"; width = 28; fixed_width = true; }" f)
-  (write-line "    : button { key = \"patch\";  label = \"&Patch gaps (draw lines)\"; width = 28; fixed_width = true; }" f)
-  (write-line "    : button { key = \"manual\"; label = \"&Manual corners\"; width = 28; fixed_width = true; }" f)
-  (write-line "    : button { key = \"select\"; label = \"&Select existing polyline\"; width = 28; fixed_width = true; }" f)
+  (write-line "    : button { key = \"retry\";  label = \"&Retry at new point\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"patch\";  label = \"&Patch gaps (draw lines)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : spacer { height = 0.2; }" f)
+  (write-line "    : button { key = \"manual\"; label = \"&Draw polyline (click corners)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"rect\";   label = \"Draw &rectangle (2 corners)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"select\"; label = \"&Select existing polyline\"; width = 32; fixed_width = true; }" f)
   (write-line "    : spacer { height = 0.3; }" f)
-  (write-line "    : button { key = \"cancel\"; label = \"Cancel\"; is_cancel = true; width = 28; fixed_width = true; }" f)
+  (write-line "    : button { key = \"cancel\"; label = \"Cancel\"; is_cancel = true; width = 32; fixed_width = true; }" f)
   (write-line "  }" f)
   (write-line "}" f)
   (close f)
@@ -350,6 +352,7 @@
       (action_tile "retry"  "(setq result \"Retry\")  (done_dialog 1)")
       (action_tile "patch"  "(setq result \"Patch\")  (done_dialog 1)")
       (action_tile "manual" "(setq result \"Manual\") (done_dialog 1)")
+      (action_tile "rect"   "(setq result \"Rect\")   (done_dialog 1)")
       (action_tile "select" "(setq result \"Select\") (done_dialog 1)")
       (action_tile "cancel" "(setq result nil) (done_dialog 0)")
       (start_dialog)
@@ -381,6 +384,33 @@
               '(70 . 1)))  ; closed
       (foreach p pts
         (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
+      (entmake elist)
+      (entlast))))
+
+;; ── Rectangle (two-corner) polyline builder ──────────────────────────────────
+(defun tz-pick-rectangle ( / p1 p2 x1 y1 x2 y2 elist)
+  (princ "\n[T24] Click two opposite corners of the rectangle.")
+  (setq p1 (getpoint "\n[T24]   First corner: "))
+  (if (null p1) (progn (princ "\n[T24] Cancelled.") (setq p1 nil)))
+  (if p1
+    (progn
+      (setq p2 (getcorner p1 "\n[T24]   Opposite corner: "))
+      (if (null p2) (progn (princ "\n[T24] Cancelled.") (setq p2 nil)))))
+  (if (and p1 p2)
+    (progn
+      (setq x1 (car p1) y1 (cadr p1)
+            x2 (car p2) y2 (cadr p2))
+      (setq elist
+        (list '(0 . "LWPOLYLINE")
+              '(100 . "AcDbEntity")
+              (cons 8 *TZ-LYR-ZONE*)
+              '(100 . "AcDbPolyline")
+              '(90 . 4)
+              '(70 . 1)  ; closed
+              (cons 10 (list x1 y1))
+              (cons 10 (list x2 y1))
+              (cons 10 (list x2 y2))
+              (cons 10 (list x1 y2))))
       (entmake elist)
       (entlast))))
 
@@ -1058,6 +1088,8 @@
                    (setq ent (car sel2))
                    (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
                      (progn (princ "\n[T24] Not a polyline, skipping.") (setq ent nil)))))))
+            ((= choice "Rect")
+             (setq ent (tz-pick-rectangle)))
             (T  ;; "Manual" — pick corners
              (setq ent (tz-pick-corners)))))
 
