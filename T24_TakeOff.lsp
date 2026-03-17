@@ -259,23 +259,31 @@
 
 ;; ── Session setup dialog ─────────────────────────────────────────────────────
 ;; Popup dialog to collect session defaults before TZ-ZONE starts.
-;; Sets outer-scope variables: ceil-ht, floor, gap-tol, *TZ-CLIMATE-ZONE*, *TZ-FRONT-ORIENT*, *TZ-NORTH-ANGLE*
+;; Sets outer-scope variables: ceil-ht, floor, gap-tol, *TZ-CLIMATE-ZONE*, *TZ-NORTH-ANGLE*
+;; All fields persist as globals — values carry over between TZ-ZONE runs
+;; until AutoCAD is closed.  Front orientation is always 0 (EnergyPro default).
 (defun tz-session-dialog ( / dcl-path f dcl-id status)
+  ;; Initialize globals on first run only
+  (if (null *TZ-CEIL-HT*)       (setq *TZ-CEIL-HT*       9.0))
+  (if (null *TZ-FLOOR*)         (setq *TZ-FLOOR*         1))
+  (if (null *TZ-GAP-TOL*)       (setq *TZ-GAP-TOL*       1.0))
+  (if (null *TZ-CLIMATE-ZONE*)  (setq *TZ-CLIMATE-ZONE*  "3"))
+  (if (null *TZ-NORTH-ANGLE*)   (setq *TZ-NORTH-ANGLE*   0.0))
+
   (setq dcl-path (vl-filename-mktemp "tz_sess" nil ".dcl"))
   (setq f (open dcl-path "w"))
   (write-line "tz_sess : dialog {" f)
   (write-line "  label = \"T24 Zone Setup\";" f)
   (write-line "  : column {" f)
   (write-line "    : row {" f)
-  (write-line "      : edit_box { key = \"ceil\";   label = \"Ceiling Height (ft)\"; edit_width = 8; value = \"9.0\"; }" f)
-  (write-line "      : edit_box { key = \"floor\";  label = \"Floor Number\";        edit_width = 8; value = \"1\"; }" f)
+  (write-line "      : edit_box { key = \"ceil\";   label = \"Ceiling Height (ft)\"; edit_width = 8; }" f)
+  (write-line "      : edit_box { key = \"floor\";  label = \"Floor Number\";        edit_width = 8; }" f)
   (write-line "    }" f)
   (write-line "    : row {" f)
-  (write-line "      : edit_box { key = \"gap\";    label = \"Gap Tolerance (in)\";  edit_width = 8; value = \"1.0\"; }" f)
-  (write-line "      : edit_box { key = \"czone\";  label = \"Climate Zone\";        edit_width = 8; value = \"3\"; }" f)
+  (write-line "      : edit_box { key = \"gap\";    label = \"Gap Tolerance (in)\";  edit_width = 8; }" f)
+  (write-line "      : edit_box { key = \"czone\";  label = \"Climate Zone\";        edit_width = 8; }" f)
   (write-line "    }" f)
-  (write-line "    : edit_box { key = \"north\"; label = \"North Arrow Angle (deg in drawing)\"; edit_width = 8; value = \"0.0\"; }" f)
-  (write-line "    : popup_list { key = \"orient\"; label = \"Front Orientation\"; width = 24; }" f)
+  (write-line "    : edit_box { key = \"north\"; label = \"North Arrow Direction (deg in drawing)\"; edit_width = 8; }" f)
   (write-line "    : spacer { height = 0.3; }" f)
   (write-line "    : row {" f)
   (write-line "      : button { key = \"accept\"; label = \"OK\"; is_default = true; width = 12; fixed_width = true; }" f)
@@ -290,28 +298,19 @@
     (progn (princ "\n[T24] Dialog load failed, using defaults.") nil)
     (progn
       (new_dialog "tz_sess" dcl-id)
-      ;; Pre-fill with current values
-      (set_tile "ceil"  (rtos ceil-ht 2 1))
-      (set_tile "floor" (itoa floor))
-      (set_tile "gap"   (rtos gap-tol 2 1))
+      ;; Pre-fill with persistent values
+      (set_tile "ceil"  (rtos *TZ-CEIL-HT* 2 1))
+      (set_tile "floor" (itoa *TZ-FLOOR*))
+      (set_tile "gap"   (rtos *TZ-GAP-TOL* 2 1))
       (set_tile "czone" *TZ-CLIMATE-ZONE*)
       (set_tile "north" (rtos *TZ-NORTH-ANGLE* 2 1))
-      ;; Populate orientation dropdown — degrees, 0 = North (EnergyPro default)
-      (start_list "orient")
-      (foreach o '("North (0)" "NE (45)" "East (90)" "SE (135)"
-                   "South (180)" "SW (225)" "West (270)" "NW (315)")
-        (add_list o))
-      (end_list)
-      (set_tile "orient" "0")  ; default North (0)
 
       ;; Callbacks
-      (action_tile "accept" "(setq ceil-ht (atof (get_tile \"ceil\"))
-                                   floor   (atoi (get_tile \"floor\"))
-                                   gap-tol (atof (get_tile \"gap\"))
-                                   *TZ-CLIMATE-ZONE* (get_tile \"czone\")
-                                   *TZ-NORTH-ANGLE* (atof (get_tile \"north\"))
-                                   *TZ-FRONT-ORIENT* (nth (atoi (get_tile \"orient\"))
-                                     '(0 45 90 135 180 225 270 315)))
+      (action_tile "accept" "(setq *TZ-CEIL-HT*      (atof (get_tile \"ceil\"))
+                                   *TZ-FLOOR*         (atoi (get_tile \"floor\"))
+                                   *TZ-GAP-TOL*       (atof (get_tile \"gap\"))
+                                   *TZ-CLIMATE-ZONE*  (get_tile \"czone\")
+                                   *TZ-NORTH-ANGLE*   (atof (get_tile \"north\")))
                               (done_dialog 1)")
       (action_tile "cancel" "(done_dialog 0)")
 
@@ -321,12 +320,15 @@
 
       ;; Validate
       (if (= status 0) (progn (princ "\n[T24] Cancelled.") (exit)))
-      (if (<= ceil-ht 0) (setq ceil-ht 9.0))
-      (if (<= floor 0) (setq floor 1))
-      (if (<= gap-tol 0) (setq gap-tol 1.0))
-      (if (= *TZ-CLIMATE-ZONE* "") (setq *TZ-CLIMATE-ZONE* "3"))
-      (if (null *TZ-FRONT-ORIENT*) (setq *TZ-FRONT-ORIENT* 0))
-      (if (null *TZ-NORTH-ANGLE*) (setq *TZ-NORTH-ANGLE* 0.0))
+      (if (<= *TZ-CEIL-HT* 0)          (setq *TZ-CEIL-HT* 9.0))
+      (if (<= *TZ-FLOOR* 0)            (setq *TZ-FLOOR* 1))
+      (if (<= *TZ-GAP-TOL* 0)          (setq *TZ-GAP-TOL* 1.0))
+      (if (= *TZ-CLIMATE-ZONE* "")     (setq *TZ-CLIMATE-ZONE* "3"))
+
+      ;; Copy to local vars used by the rest of tz-zone
+      (setq ceil-ht *TZ-CEIL-HT*
+            floor   *TZ-FLOOR*
+            gap-tol *TZ-GAP-TOL*)
     )))
 
 ;; ── Popup choice dialog (appears near cursor) ───────────────────────────────
@@ -823,9 +825,9 @@
         hpg-save (getvar "HPGAPTOL"))
 
   ;; ── Session setup dialog ────────────────────────────────────────────────────
-  (setq ceil-ht 9.0  floor 1  gap-tol 1.0
-        *TZ-CLIMATE-ZONE* "3"  *TZ-FRONT-ORIENT* 0  *TZ-NORTH-ANGLE* 0.0)
-  (tz-session-dialog)  ;; populates the above via dialog
+  ;; Globals persist between runs; dialog pre-fills with previous values
+  (setq ceil-ht 9.0  floor 1  gap-tol 1.0)
+  (tz-session-dialog)  ;; populates ceil-ht, floor, gap-tol from persistent globals
 
   ;; Condition and occupancy default to generic values — sort out in EnergyPro
   (setq condition "Conditioned"
@@ -834,7 +836,6 @@
   (princ (strcat "\n[T24] Session: " (rtos ceil-ht 2 1) "' ceiling  |  Floor " (itoa floor)
                  "  |  Gap tol " (rtos gap-tol 2 1) "\""
                  "  |  CZ " *TZ-CLIMATE-ZONE*
-                 "  |  Front " (itoa (fix *TZ-FRONT-ORIENT*)) (chr 176)
                  "  |  North " (rtos *TZ-NORTH-ANGLE* 2 1) (chr 176)))
   (princ "\n[T24] Now click room name text for each zone. Press Enter when done.")
 
@@ -2239,7 +2240,7 @@
 
   (write-line "{" fp)
   (write-line (strcat "  \"climate_zone\": " (tz-jstr (if *TZ-CLIMATE-ZONE* *TZ-CLIMATE-ZONE* "3")) ",") fp)
-  (write-line (strcat "  \"front_orientation\": " (tz-jnum (if *TZ-FRONT-ORIENT* *TZ-FRONT-ORIENT* 0)) ",") fp)
+  (write-line "  \"front_orientation\": 0," fp)
   (write-line (strcat "  \"north_arrow_angle\": " (tz-jnum (if *TZ-NORTH-ANGLE* *TZ-NORTH-ANGLE* 0.0)) ",") fp)
   (write-line "  \"zones\": [" fp)
 
