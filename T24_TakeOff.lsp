@@ -1128,6 +1128,9 @@
             ;; Merge collinear segments (BOUNDARY splits straight walls)
             (tz-merge-collinear ent)
 
+            ;; Shape simplification (set by TZ-ZONE1/2/3, nil for normal TZ-ZONE)
+            (if *TZ-SHAPE-MODE* (tz-shape-simplify ent *TZ-SHAPE-MODE*))
+
             ;; Move to T24-ZONE layer if BOUNDARY put it elsewhere
             (setq edata (entget ent))
             (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
@@ -2581,6 +2584,131 @@
 (c:TZ-WATCH)
 
 
+;; ── Shape simplification helpers ─────────────────────────────────────────────
+
+;; 2D cross product of vectors OA and OB
+(defun tz-cross-2d (o a b)
+  (- (* (- (car a) (car o)) (- (cadr b) (cadr o)))
+     (* (- (cadr a) (cadr o)) (- (car b) (car o)))))
+
+;; Graham scan convex hull. Returns list of (x y) in CCW order.
+(defun tz-convex-hull (pts / sorted n lower upper p)
+  (if (<= (length pts) 2)
+    pts
+    (progn
+      (setq sorted
+        (vl-sort pts
+          '(lambda (a b)
+             (if (= (car a) (car b))
+               (< (cadr a) (cadr b))
+               (< (car a) (car b))))))
+      (setq lower '())
+      (foreach p sorted
+        (while (and (>= (length lower) 2)
+                    (<= (tz-cross-2d (nth (- (length lower) 2) lower)
+                                     (nth (- (length lower) 1) lower) p)
+                        0.0))
+          (setq lower (reverse (cdr (reverse lower)))))
+        (setq lower (append lower (list p))))
+      (setq upper '())
+      (foreach p (reverse sorted)
+        (while (and (>= (length upper) 2)
+                    (<= (tz-cross-2d (nth (- (length upper) 2) upper)
+                                     (nth (- (length upper) 1) upper) p)
+                        0.0))
+          (setq upper (reverse (cdr (reverse upper)))))
+        (setq upper (append upper (list p))))
+      (append (reverse (cdr (reverse lower)))
+              (reverse (cdr (reverse upper)))))))
+
+;; Concavity filter: compute convex hull, then walk the original polygon.
+;; Only fill concavities smaller than threshold (sqft). Keep large ones.
+(defun tz-filter-concavities (pts threshold-sqft / hull hull-area orig-area
+                                    concavity-area)
+  (setq hull (tz-convex-hull pts))
+  (if (null hull)
+    pts
+    (progn
+      ;; If the concavity (hull area - original area) is small, use hull
+      (setq hull-area (tz-poly-area hull)
+            orig-area (tz-poly-area pts)
+            concavity-area (/ (- hull-area orig-area) (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+      (princ (strcat "\n[T24] Concavity: " (rtos concavity-area 2 1)
+                     " sqft (threshold " (rtos threshold-sqft 2 0) ")"))
+      (if (<= concavity-area threshold-sqft)
+        (progn (princ " -> using convex hull") hull)
+        (progn (princ " -> keeping original shape") pts)))))
+
+;; Signed polygon area (shoelace formula), returns absolute area in drawing units^2
+(defun tz-poly-area (pts / n i sum p1 p2)
+  (setq n (length pts) sum 0.0 i 0)
+  (repeat n
+    (setq p1 (nth i pts)
+          p2 (nth (rem (1+ i) n) pts)
+          sum (+ sum (- (* (car p1) (cadr p2)) (* (car p2) (cadr p1))))
+          i (1+ i)))
+  (abs (/ sum 2.0)))
+
+;; Axis-aligned bounding box. Returns 4 corner points.
+(defun tz-bounding-box (pts / min-x min-y max-x max-y)
+  (setq min-x (apply 'min (mapcar 'car pts))
+        max-x (apply 'max (mapcar 'car pts))
+        min-y (apply 'min (mapcar 'cadr pts))
+        max-y (apply 'max (mapcar 'cadr pts)))
+  (list (list min-x min-y) (list max-x min-y)
+        (list max-x max-y) (list min-x max-y)))
+
+;; Dispatcher: apply shape simplification mode to a polyline entity
+(defun tz-shape-simplify (ent mode / pts new-pts obj n-before n-after label)
+  (setq pts (tz-get-pts ent)
+        n-before (length pts))
+  (cond
+    ((= mode 1)  ; Convex hull
+     (setq new-pts (tz-convex-hull pts)
+           label "Convex hull"))
+    ((= mode 2)  ; Concavity threshold (50 sqft default)
+     (setq new-pts (tz-filter-concavities pts 50.0)
+           label "Concavity filter"))
+    ((= mode 3)  ; Bounding box
+     (setq new-pts (tz-bounding-box pts)
+           label "Bounding box"))
+    (T (setq new-pts pts label "None")))
+  (if (and new-pts (>= (length new-pts) 3) (not (equal new-pts pts)))
+    (progn
+      (setq obj (vlax-ename->vla-object ent)
+            n-after (length new-pts))
+      (tz-set-pline-verts obj
+        (mapcar '(lambda (p) (list (car p) (cadr p) 0.0)) new-pts))
+      (princ (strcat "\n[T24] " label ": " (itoa n-before)
+                     " -> " (itoa n-after) " vertices")))
+    (princ (strcat "\n[T24] " label ": no change"))))
+
+;; ── TZ-ZONE1 / TZ-ZONE2 / TZ-ZONE3 ────────────────────────────────────────
+;; Thin wrappers: set shape mode, call TZ-ZONE, clear mode.
+
+(defun c:TZ-ZONE1 ()
+  (princ "\n[T24] Mode: CONVEX HULL")
+  (setq *TZ-SHAPE-MODE* 1)
+  (c:TZ-ZONE)
+  (setq *TZ-SHAPE-MODE* nil)
+  (princ))
+
+(defun c:TZ-ZONE2 ()
+  (princ "\n[T24] Mode: CONCAVITY FILTER (fills notches < 50 sqft)")
+  (setq *TZ-SHAPE-MODE* 2)
+  (c:TZ-ZONE)
+  (setq *TZ-SHAPE-MODE* nil)
+  (princ))
+
+(defun c:TZ-ZONE3 ()
+  (princ "\n[T24] Mode: BOUNDING BOX")
+  (setq *TZ-SHAPE-MODE* 3)
+  (c:TZ-ZONE)
+  (setq *TZ-SHAPE-MODE* nil)
+  (princ))
+
+(setq *TZ-SHAPE-MODE* nil)
+
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
 ;; Z-elevations, blocks/proxies, and tries BOUNDARY at multiple gap tolerances.
@@ -2794,7 +2922,9 @@
 (princ "\n|  TZ-EXPORT-ALL- Export all open drawings   |")
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
-(princ "\n|  TZ-ZTEST     - Diagnose boundary issues    |")
+(princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
+(princ "\n|  TZ-ZONE2     - Zone + concavity filter     |")
+(princ "\n|  TZ-ZONE3     - Zone + bounding box         |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
