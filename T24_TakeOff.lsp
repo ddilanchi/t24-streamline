@@ -487,13 +487,11 @@
   ent)
 
 ;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
-;; Zooms to extents once, stays there for all rooms in the session.
+;; Zoom extents, try boundary, zoom back. Every room gets a fresh zoom.
 (defun tz-hatch-boundary (pt gap-tol / ent)
-  (if (null *TZ-ZOOMED*)
-    (progn
-      (command "_.ZOOM" "_Extents")
-      (setq *TZ-ZOOMED* T)))
+  (command "_.ZOOM" "_Extents")
   (setq ent (tz-try-boundary pt gap-tol))
+  (command "_.ZOOM" "_Previous")
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -898,8 +896,7 @@
 
   (tz-setup)
   (setq ce nil  cd nil  cl nil  froze nil  txt-lyrs-frozen nil
-        hpg-save (getvar "HPGAPTOL")
-        *TZ-ZOOMED* nil)
+        hpg-save (getvar "HPGAPTOL"))
 
   ;; ── Session setup dialog ────────────────────────────────────────────────────
   ;; Globals persist between runs; dialog pre-fills with previous values
@@ -1159,8 +1156,6 @@
   ;; Thaw any layers frozen during the session (e.g. txt-lyrs-frozen, froze)
   (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
   (if froze (tz-thaw-layers froze))
-  ;; Restore zoom if we changed it
-  (if *TZ-ZOOMED* (progn (command "_.ZOOM" "_Previous") (setq *TZ-ZOOMED* nil)))
   (setq *TZ-BUSY* nil)
   (*pop-error-using-command*)
   (c:TZ-WATCH)
