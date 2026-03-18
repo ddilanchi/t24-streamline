@@ -1895,7 +1895,8 @@
                            "  \"" (tz-xd-nth xd 1000 2) "\""
                            "  " (rtos (/ (vlax-curve-getarea (vlax-ename->vla-object ent))
                                          (* *TZ-UNIT-FT* *TZ-UNIT-FT*)) 2 1) " sqft"
-                           "  Fl " (itoa (tz-xd-num xd 1070 0 1))))
+                           "  " (rtos (tz-xd-num xd 1040 0 9.0) 2 1) "' clg"
+                           "  Fl " (itoa (fix (tz-xd-num xd 1070 0 1)))))
             ;; ── Walls under this zone, with openings nested ──
             (if ss-w
               (progn
@@ -2568,9 +2569,12 @@
       (if (member cmd '("GRIP_STRETCH" "STRETCH" "PEDIT" "MOVE" "COPY"
                          "MIRROR" "ROTATE" "SCALE" "UNDO" "U" "MREDO"))
         (c:TZ-WATCH))
-      ;; Sync zone name labels back to zone XDATA after text edit commands
-      (if (member cmd '("DDEDIT" "TEXTEDIT" "_TEXTEDIT" "MTEDIT" "PROPERTIES"))
-        (tz-sync-name-labels)))))
+      ;; Sync zone labels back to zone XDATA after text edit commands
+      (if (member cmd '("DDEDIT" "TEXTEDIT" "_TEXTEDIT" "MTEDIT" "PROPERTIES"
+                         "DDATTE" "ATTEDIT" "EATTEDIT"))
+        (progn
+          (princ (strcat "\n[T24] Text edit detected (" cmd "), syncing labels..."))
+          (tz-sync-name-labels))))))
 
 ;; Sync edited ZONE-NAME-LABEL text back to the zone polyline's XDATA
 ;; Parse detail label text like "301.3 sqft  |  9.0' clg  |  Fl 1"
