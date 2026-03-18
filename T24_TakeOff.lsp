@@ -881,13 +881,16 @@
               (progn
                 (setq txt-str (vl-string-trim " " (cdr (assoc 1 txt-edata)))
                       txt-lyr (cdr (assoc 8 txt-edata)))
-                (if (and txt-lyr (wcmatch txt-lyr "T24-*"))
-                  (princ "\n[T24] Clicked a T24 entity — try again.")
-                  (progn
-                    (if txt-lyr (setq txt-layers (list txt-lyr)))
-                    (if (= txt-str "") (setq txt-str nil))
-                    (setq zone-name txt-str))))
-              (princ "\n[T24] Not text — try again, or press Enter for manual entry."))))))
+                (cond
+                  ((and txt-lyr (wcmatch txt-lyr "T24-*"))
+                   (princ "\n[T24] Clicked a T24 entity -- try again."))
+                  ((and txt-lyr (not (tz-layer-visible-p txt-lyr)))
+                   (princ (strcat "\n[T24] Text on frozen/off layer \"" txt-lyr "\" -- try again.")))
+                  (T
+                   (if txt-lyr (setq txt-layers (list txt-lyr)))
+                   (if (= txt-str "") (setq txt-str nil))
+                   (setq zone-name txt-str))))
+              (princ "\n[T24] Not text -- try again, or press Enter for manual entry."))))))
       ;; If Enter was pressed (sel = nil), offer manual point + typed name
       (cond
         (zone-name T)
