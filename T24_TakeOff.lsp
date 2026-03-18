@@ -542,6 +542,7 @@
 (defun tz-skip-text-p (s / up)
   (setq up (strcase s))
   (or (wcmatch up "OCC")
+      (wcmatch up "OCC.*")
       (wcmatch up "OCCUPANCY")
       (wcmatch up "COND")
       (wcmatch up "CONDITIONED")
@@ -551,6 +552,17 @@
       (wcmatch up "GARAGE")
       (wcmatch up "EXTERIOR")
       (wcmatch up "ATTIC")
+      (wcmatch up "EXIT")
+      (wcmatch up "EXIT*")
+      (wcmatch up "STAIR*")
+      (wcmatch up "ELEV*")
+      (wcmatch up "CORRIDOR")
+      (wcmatch up "HALL*")
+      (wcmatch up "MECH*")
+      (wcmatch up "ELECTRICAL")
+      (wcmatch up "TRASH")
+      (wcmatch up "JANITOR")
+      (wcmatch up "STORAGE")
       (tz-sqft-text-p s)))
 
 ;; Returns T if string looks like a square-footage label (e.g. "250 SQ. FT.")
@@ -966,7 +978,7 @@
                                       (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                                (setq near-pt (cdr (assoc 11 near-ed))))
                              (setq near-dist (distance txt-ins near-pt))
-                             (if (and (< near-dist 18.0)
+                             (if (and (< near-dist 36.0)
                                       (not (tz-skip-text-p near-str)))
                                (setq nearby-texts
                                  (cons (list near-dist near-str) nearby-texts))))))
@@ -990,19 +1002,19 @@
                                             (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
                                      (setq near-pt (cdr (assoc 11 sub-ed))))
                                    (setq near-dist (distance txt-ins near-pt))
-                                   (if (and (< near-dist 18.0)
+                                   (if (and (< near-dist 36.0)
                                             (not (tz-skip-text-p near-str)))
                                      (setq nearby-texts
                                        (cons (list near-dist near-str) nearby-texts)))))
                                (setq sub-ent (entnext sub-ent)))))))
                       (setq near-ent (entnext near-ent)))))))
 
-              ;; ── Not nested -- spatial ssget within 18" box only ──
+              ;; ── Not nested -- spatial ssget within 36" box only ──
               (if txt-lyr
                 (progn
                   (setq ss-near (ssget "C"
-                                  (list (- (car txt-ins) 18.0) (- (cadr txt-ins) 18.0) 0.0)
-                                  (list (+ (car txt-ins) 18.0) (+ (cadr txt-ins) 18.0) 0.0)
+                                  (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
+                                  (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
                                   (list (cons 8 txt-lyr)
                                         '(-4 . "<OR")
                                           '(0 . "TEXT")
@@ -1025,7 +1037,7 @@
                                          (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                                   (setq near-pt (cdr (assoc 11 near-ed))))
                                 (setq near-dist (distance txt-ins near-pt))
-                                (if (and (< near-dist 18.0)
+                                (if (and (< near-dist 36.0)
                                          (not (tz-skip-text-p near-str)))
                                   (setq nearby-texts
                                     (cons (list near-dist near-str) nearby-texts)))))))
@@ -1036,6 +1048,10 @@
               (progn
                 (setq nearby-texts
                   (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
+                ;; Debug: show all candidates
+                (princ (strcat "\n[T24]   Found " (itoa (length nearby-texts)) " nearby text(s):"))
+                (foreach nt nearby-texts
+                  (princ (strcat "\n[T24]     " (rtos (car nt) 2 1) "\" \"" (cadr nt) "\"")))
                 (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))
                 (princ (strcat "\n[T24]   Auto-appended: \"" (cadr (car nearby-texts)) "\""))))))
         ;; Hard cap at 30 characters
