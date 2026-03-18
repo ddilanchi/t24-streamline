@@ -490,7 +490,6 @@
 ;; Tries at current zoom first, then zooms to a local window around the point,
 ;; then falls back to zoom extents. Runs REGENALL once before starting.
 (defun tz-hatch-boundary (pt gap-tol / ent local-rad)
-  (command "_.REGENALL")
   ;; Try 1: current zoom (fastest)
   (setq ent (tz-try-boundary pt gap-tol))
   ;; Try 2: zoom to local area around the pick point (~100' radius)
