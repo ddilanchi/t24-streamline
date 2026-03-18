@@ -225,8 +225,13 @@
   (setq lsave (getvar "CLAYER"))
   (setvar "CLAYER" *TZ-LYR-LABEL*)
   (setq th (* 0.5 *TZ-UNIT-FT*))   ; 6 inches
-  ;; Zone name – large
+  ;; Zone name -- large, tagged so edits propagate back to zone XDATA
   (tz-make-text centroid (* 1.4 th) zone-name)
+  (if zone-id
+    (tz-set-xdata (entlast)
+      (list *TZ-APP*
+        (cons 1000 "ZONE-NAME-LABEL")
+        (cons 1000 zone-id))))
   ;; Area | ceiling | floor
   (tz-make-text
     (list (car centroid) (- (cadr centroid) (* 2.4 th)) 0.0)
@@ -921,7 +926,7 @@
 
   ;; Condition and occupancy default to generic values — sort out in EnergyPro
   (setq condition "Conditioned"
-        occupancy "Residential")
+        occupancy "Nonresidential")
 
   (princ (strcat "\n[T24] Session: " (rtos ceil-ht 2 1) "' ceiling  |  Floor " (itoa floor)
                  "  |  Gap tol " (rtos gap-tol 2 1) "\""
@@ -2562,7 +2567,51 @@
       (setq cmd (strcase (car params)))
       (if (member cmd '("GRIP_STRETCH" "STRETCH" "PEDIT" "MOVE" "COPY"
                          "MIRROR" "ROTATE" "SCALE" "UNDO" "U" "MREDO"))
-        (c:TZ-WATCH)))))
+        (c:TZ-WATCH))
+      ;; Sync zone name labels back to zone XDATA after text edit commands
+      (if (member cmd '("DDEDIT" "TEXTEDIT" "_TEXTEDIT" "MTEDIT" "PROPERTIES"))
+        (tz-sync-name-labels)))))
+
+;; Sync edited ZONE-NAME-LABEL text back to the zone polyline's XDATA
+(defun tz-sync-name-labels ( / ss i tent txd zid new-name
+                               ss-z j zent zxd old-name)
+  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-LABEL*) '(0 . "TEXT"))))
+  (if (null ss) (exit))
+  (setq ss-z (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
+  (if (null ss-z) (exit))
+  (setq i 0)
+  (repeat (sslength ss)
+    (setq tent (ssname ss i)
+          txd  (tz-get-xdata tent))
+    (if (and txd (= (tz-xd-nth txd 1000 0) "ZONE-NAME-LABEL"))
+      (progn
+        (setq zid      (tz-xd-nth txd 1000 1)
+              new-name (vl-string-trim " " (cdr (assoc 1 (entget tent)))))
+        ;; Find the zone polyline with this zone-id
+        (setq j 0)
+        (repeat (sslength ss-z)
+          (setq zent (ssname ss-z j)
+                zxd  (tz-get-xdata zent))
+          (if (and zxd
+                   (= (tz-xd-nth zxd 1000 0) "ZONE")
+                   (= (tz-xd-nth zxd 1000 1) zid))
+            (progn
+              (setq old-name (tz-xd-nth zxd 1000 2))
+              (if (and (/= new-name old-name) (/= new-name ""))
+                (progn
+                  ;; Update zone XDATA with new name
+                  (tz-set-xdata zent
+                    (list *TZ-APP*
+                      (cons 1000 "ZONE")
+                      (cons 1000 zid)
+                      (cons 1000 new-name)
+                      (cons 1040 (tz-xd-num zxd 1040 0 9.0))
+                      (cons 1070 (fix (tz-xd-num zxd 1070 0 1)))
+                      (cons 1000 (or (tz-xd-nth zxd 1000 3) "Conditioned"))
+                      (cons 1000 (or (tz-xd-nth zxd 1000 4) "Nonresidential"))))
+                  (princ (strcat "\n[T24] Renamed " zid ": \"" old-name "\" -> \"" new-name "\""))))))
+          (setq j (1+ j)))))
+    (setq i (1+ i))))
 
 ;; Install command reactor at load time
 (if *TZ-CMD-REACTOR*
