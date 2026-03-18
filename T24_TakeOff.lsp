@@ -487,10 +487,27 @@
   ent)
 
 ;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
-(defun tz-hatch-boundary (pt gap-tol / ent)
-  (command "_.ZOOM" "_Extents")
+;; Tries at current zoom first, then zooms to a local window around the point,
+;; then falls back to zoom extents. Runs REGENALL once before starting.
+(defun tz-hatch-boundary (pt gap-tol / ent local-rad)
+  (command "_.REGENALL")
+  ;; Try 1: current zoom (fastest)
   (setq ent (tz-try-boundary pt gap-tol))
-  (command "_.ZOOM" "_Previous")
+  ;; Try 2: zoom to local area around the pick point (~100' radius)
+  (if (null ent)
+    (progn
+      (setq local-rad 1200.0)  ; 100 feet in inches
+      (command "_.ZOOM" "_Window"
+        (list (- (car pt) local-rad) (- (cadr pt) local-rad))
+        (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
+      (setq ent (tz-try-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ;; Try 3: zoom extents (slowest, last resort)
+  (if (null ent)
+    (progn
+      (command "_.ZOOM" "_Extents")
+      (setq ent (tz-try-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -2669,70 +2686,88 @@
       (princ (rtos (getvar "ELEVATION") 2 4))
     ))
 
-  ;; ── Try BOUNDARY at multiple gap tolerances ──
-  (princ "\n\n[ZTEST] === BOUNDARY attempts ===")
+  ;; ── Try BOUNDARY at multiple zoom levels and gap tolerances ──
+  (princ "\n\n[ZTEST] Running REGENALL...")
+  (command "_.REGENALL")
   (setq gap-list '(0.0 1.0 4.0 12.0 36.0 48.0)
         saved-gaptol (getvar "HPGAPTOL")
         results '())
 
-  (command "_.ZOOM" "_Extents")
+  ;; Test at 3 zoom levels × 6 gap tolerances
+  (foreach zoom-info (list
+    (cons "Current zoom" nil)
+    (cons "Local zoom (100')" 1200.0)
+    (cons "Zoom Extents" T))
 
-  (foreach gap gap-list
-    (setvar "HPGAPTOL" gap)
-    (setq last-ent (entlast))
-    (command "_-BOUNDARY" pt "")
+    (princ (strcat "\n\n[ZTEST] === " (car zoom-info) " ==="))
 
-    (if (equal (entlast) last-ent)
-      (progn
-        (princ (strcat "\n[ZTEST] Gap " (rtos gap 2 1) "\": FAILED (no entity created)")))
-      (progn
-        ;; Collect all created entities
-        (setq scan-ent (entnext last-ent)  new-ent nil  area-sqft 0.0)
-        (while scan-ent
-          (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
-            (progn
-              (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object scan-ent))
-                                 (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-              (if (null new-ent)
-                (setq new-ent scan-ent)
-                ;; Keep the smallest polyline (likely the room, not an escape)
-                (if (< area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
-                                    (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-                  (progn (entdel new-ent) (setq new-ent scan-ent))
-                  (entdel scan-ent)))))
-          (setq scan-ent (entnext scan-ent)))
+    ;; Set zoom level
+    (cond
+      ((null (cdr zoom-info)) nil)  ; current zoom, do nothing
+      ((= (cdr zoom-info) T)        ; zoom extents
+       (command "_.ZOOM" "_Extents"))
+      (T                             ; local window
+       (command "_.ZOOM" "_Window"
+         (list (- (car pt) (cdr zoom-info)) (- (cadr pt) (cdr zoom-info)))
+         (list (+ (car pt) (cdr zoom-info)) (+ (cadr pt) (cdr zoom-info))))))
 
-        (if new-ent
-          (progn
-            (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
-                               (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-            (princ (strcat "\n[ZTEST] Gap " (rtos gap 2 1) "\": "
-                           (rtos area-sqft 2 1) " sqft"
-                           (if (> area-sqft 5000.0) "  *** LIKELY ESCAPED ***" "")))
-            ;; Color-code and keep the first successful result for visual inspection
-            (if (null results)
+    (foreach gap gap-list
+      (setvar "HPGAPTOL" gap)
+      (setq last-ent (entlast))
+      (command "_-BOUNDARY" pt "")
+
+      (if (equal (entlast) last-ent)
+        (princ (strcat "\n[ZTEST]   Gap " (rtos gap 2 1) "\": FAILED"))
+        (progn
+          ;; Collect all created entities
+          (setq scan-ent (entnext last-ent)  new-ent nil  area-sqft 0.0)
+          (while scan-ent
+            (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
               (progn
-                ;; Keep this one — color it green
-                (entmod (subst '(62 . 3) (assoc 62 (entget new-ent))
-                               (if (assoc 62 (entget new-ent))
-                                 (entget new-ent)
-                                 (append (entget new-ent) '((62 . 3))))))
-                ;; Move to diagnostic layer
-                (entmod (subst (cons 8 *TZ-LYR-LABEL*) (assoc 8 (entget new-ent)) (entget new-ent)))
-                (setq results (cons (cons gap new-ent) results))
-                (princ "  [KEPT - green]"))
-              ;; Delete subsequent results
-              (entdel new-ent)))
-          (princ (strcat "\n[ZTEST] Gap " (rtos gap 2 1) "\": created entity but no polyline"))))))
+                (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object scan-ent))
+                                   (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+                (if (null new-ent)
+                  (setq new-ent scan-ent)
+                  ;; Keep the smallest polyline (likely the room, not an escape)
+                  (if (< area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
+                                      (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+                    (progn (entdel new-ent) (setq new-ent scan-ent))
+                    (entdel scan-ent)))))
+            (setq scan-ent (entnext scan-ent)))
 
-  (command "_.ZOOM" "_Previous")
+          (if new-ent
+            (progn
+              (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
+                                 (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+              (princ (strcat "\n[ZTEST]   Gap " (rtos gap 2 1) "\": "
+                             (rtos area-sqft 2 1) " sqft"
+                             (if (> area-sqft 5000.0) "  *** ESCAPED ***" "")))
+              ;; Keep first reasonable result for visual inspection
+              (if (and (null results) (> area-sqft 10.0))
+                (progn
+                  (entmod (subst '(62 . 3) (assoc 62 (entget new-ent))
+                                 (if (assoc 62 (entget new-ent))
+                                   (entget new-ent)
+                                   (append (entget new-ent) '((62 . 3))))))
+                  (entmod (subst (cons 8 *TZ-LYR-LABEL*) (assoc 8 (entget new-ent)) (entget new-ent)))
+                  (setq results (cons (list (car zoom-info) gap area-sqft new-ent) results))
+                  (princ "  [KEPT - green]"))
+                (entdel new-ent)))
+            (princ (strcat "\n[ZTEST]   Gap " (rtos gap 2 1) "\": entity created but no polyline"))))))
+
+    ;; Restore zoom if we changed it
+    (if (cdr zoom-info) (command "_.ZOOM" "_Previous")))
+
   (setvar "HPGAPTOL" saved-gaptol)
 
   ;; ── Summary ──
   (princ "\n\n[ZTEST] === Summary ===")
   (if results
-    (princ "\n[ZTEST] First successful boundary kept on T24-LABEL layer (green).")
-    (princ "\n[ZTEST] All attempts failed. Room geometry is likely not primitive lines/arcs."))
+    (progn
+      (princ (strcat "\n[ZTEST] Best result: " (rtos (caddr (car results)) 2 1) " sqft"
+                     " at \"" (car (car results)) "\" gap=" (rtos (cadr (car results)) 2 1) "\""))
+      (princ "\n[ZTEST] Kept on T24-LABEL layer (green)."))
+    (princ "\n[ZTEST] All 18 attempts failed. BOUNDARY cannot see room geometry."))
   (princ "\n[ZTEST] Suggestions if BOUNDARY escapes:")
   (princ "\n[ZTEST]   1. EXPLODE all blocks near the room (check INSERT count above)")
   (princ "\n[ZTEST]   2. Check Z-elevations: FLATTEN or set ELEVATION sysvar")
