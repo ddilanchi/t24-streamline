@@ -2573,8 +2573,43 @@
         (tz-sync-name-labels)))))
 
 ;; Sync edited ZONE-NAME-LABEL text back to the zone polyline's XDATA
-(defun tz-sync-name-labels ( / ss i tent txd zid new-name
-                               ss-z j zent zxd old-name)
+;; Parse detail label text like "301.3 sqft  |  9.0' clg  |  Fl 1"
+;; Returns (ceiling-ht floor-num) or nil if parse fails
+(defun tz-parse-detail-label (s / parts p cht fl tok)
+  (setq parts (vl-string->list s)
+        cht nil  fl nil)
+  ;; Find number before ' clg or 'clg
+  (if (wcmatch (strcase s) "*'` CLG*,*' CLG*,*`'CLG*")
+    (progn
+      ;; Extract the number before the apostrophe
+      (setq p (vl-string-search "'" s))
+      (if p
+        (progn
+          ;; Walk backwards from apostrophe to find start of number
+          (setq tok "")
+          (while (and (> p 0)
+                      (progn (setq p (1- p))
+                             (member (substr s (1+ p) 1) '("0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "."))))
+            (setq tok (strcat (substr s (1+ p) 1) tok)))
+          (if (/= tok "") (setq cht (atof tok)))))))
+  ;; Find number after "Fl " or "Fl"
+  (if (wcmatch (strcase s) "*FL *,*FL`t*")
+    (progn
+      (setq p (vl-string-search "Fl " s))
+      (if (null p) (setq p (vl-string-search "fl " s)))
+      (if (null p) (setq p (vl-string-search "FL " s)))
+      (if p
+        (progn
+          (setq tok (substr s (+ p 4)))
+          (setq tok (vl-string-trim " " tok))
+          (if (/= tok "") (setq fl (atoi tok)))))))
+  (if (or cht fl) (list cht fl) nil))
+
+(defun tz-sync-name-labels ( / ss i tent txd zid tag-type
+                               ss-z j zent zxd
+                               new-name old-name
+                               new-text parsed new-cht new-fl
+                               old-cht old-fl changed)
   (setq ss (ssget "X" (list (cons 8 *TZ-LYR-LABEL*) '(0 . "TEXT"))))
   (if (null ss) (exit))
   (setq ss-z (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
@@ -2583,34 +2618,67 @@
   (repeat (sslength ss)
     (setq tent (ssname ss i)
           txd  (tz-get-xdata tent))
-    (if (and txd (= (tz-xd-nth txd 1000 0) "ZONE-NAME-LABEL"))
+    (if txd
       (progn
-        (setq zid      (tz-xd-nth txd 1000 1)
-              new-name (vl-string-trim " " (cdr (assoc 1 (entget tent)))))
-        ;; Find the zone polyline with this zone-id
-        (setq j 0)
-        (repeat (sslength ss-z)
-          (setq zent (ssname ss-z j)
-                zxd  (tz-get-xdata zent))
-          (if (and zxd
-                   (= (tz-xd-nth zxd 1000 0) "ZONE")
-                   (= (tz-xd-nth zxd 1000 1) zid))
-            (progn
-              (setq old-name (tz-xd-nth zxd 1000 2))
-              (if (and (/= new-name old-name) (/= new-name ""))
+        (setq tag-type (tz-xd-nth txd 1000 0)
+              zid      (tz-xd-nth txd 1000 1))
+        (if (and zid (or (= tag-type "ZONE-NAME-LABEL")
+                         (= tag-type "ZONE-LABEL")))
+          ;; Find the zone polyline with this zone-id
+          (progn
+            (setq j 0)
+            (repeat (sslength ss-z)
+              (setq zent (ssname ss-z j)
+                    zxd  (tz-get-xdata zent))
+              (if (and zxd
+                       (= (tz-xd-nth zxd 1000 0) "ZONE")
+                       (= (tz-xd-nth zxd 1000 1) zid))
                 (progn
-                  ;; Update zone XDATA with new name
-                  (tz-set-xdata zent
-                    (list *TZ-APP*
-                      (cons 1000 "ZONE")
-                      (cons 1000 zid)
-                      (cons 1000 new-name)
-                      (cons 1040 (tz-xd-num zxd 1040 0 9.0))
-                      (cons 1070 (fix (tz-xd-num zxd 1070 0 1)))
-                      (cons 1000 (or (tz-xd-nth zxd 1000 3) "Conditioned"))
-                      (cons 1000 (or (tz-xd-nth zxd 1000 4) "Nonresidential"))))
-                  (princ (strcat "\n[T24] Renamed " zid ": \"" old-name "\" -> \"" new-name "\""))))))
-          (setq j (1+ j)))))
+                  (setq changed nil)
+                  (cond
+                    ;; Name label edited
+                    ((= tag-type "ZONE-NAME-LABEL")
+                     (setq new-name (vl-string-trim " " (cdr (assoc 1 (entget tent))))
+                           old-name (tz-xd-nth zxd 1000 2))
+                     (if (and (/= new-name old-name) (/= new-name ""))
+                       (progn
+                         (tz-set-xdata zent
+                           (list *TZ-APP*
+                             (cons 1000 "ZONE")
+                             (cons 1000 zid)
+                             (cons 1000 new-name)
+                             (cons 1040 (tz-xd-num zxd 1040 0 9.0))
+                             (cons 1070 (fix (tz-xd-num zxd 1070 0 1)))
+                             (cons 1000 (or (tz-xd-nth zxd 1000 3) "Conditioned"))
+                             (cons 1000 (or (tz-xd-nth zxd 1000 4) "Nonresidential"))))
+                         (princ (strcat "\n[T24] Renamed " zid ": \"" old-name "\" -> \"" new-name "\"")))))
+                    ;; Detail label edited (ceiling/floor)
+                    ((= tag-type "ZONE-LABEL")
+                     (setq new-text (cdr (assoc 1 (entget tent)))
+                           parsed (tz-parse-detail-label new-text))
+                     (if parsed
+                       (progn
+                         (setq new-cht (car parsed)
+                               new-fl  (cadr parsed)
+                               old-cht (tz-xd-num zxd 1040 0 9.0)
+                               old-fl  (fix (tz-xd-num zxd 1070 0 1)))
+                         (if (null new-cht) (setq new-cht old-cht))
+                         (if (null new-fl)  (setq new-fl old-fl))
+                         (if (or (/= new-cht old-cht) (/= new-fl old-fl))
+                           (progn
+                             (tz-set-xdata zent
+                               (list *TZ-APP*
+                                 (cons 1000 "ZONE")
+                                 (cons 1000 zid)
+                                 (cons 1000 (or (tz-xd-nth zxd 1000 2) ""))
+                                 (cons 1040 new-cht)
+                                 (cons 1070 new-fl)
+                                 (cons 1000 (or (tz-xd-nth zxd 1000 3) "Conditioned"))
+                                 (cons 1000 (or (tz-xd-nth zxd 1000 4) "Nonresidential"))))
+                             (princ (strcat "\n[T24] Updated " zid ": "
+                                           (rtos new-cht 2 1) "' clg, Fl " (itoa new-fl)))))))))
+                  ))
+              (setq j (1+ j)))))))
     (setq i (1+ i))))
 
 ;; Install command reactor at load time
