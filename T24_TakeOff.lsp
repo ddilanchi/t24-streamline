@@ -2921,7 +2921,7 @@
             (princ (strcat "\n[T24-Z1] Thawing layer: " txt-lyr))
             (tz-thaw-layer txt-lyr)))
         (command "_.UNDO" "_End")
-            ))) ; end progn(zone-name), if zone-name, while
+            )))) ; end progn(zone-name), if zone-name, while-body(progn), while
 
   (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
   (if froze (tz-thaw-layers froze))
