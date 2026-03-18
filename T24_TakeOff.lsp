@@ -982,8 +982,7 @@
         ;; Start undo group so "Undo" keyword can revert this entire zone
         (command "_.UNDO" "_Begin")
         ;; ── Auto-find nearby text to build full name ────────────────────
-        ;; Use nentselp at grid of points around click to find nearby visible
-        ;; text in world space (works correctly with XREFs).
+        (setq *tz-t0* (getvar "MILLISECS"))
         (if txt-pt
           (progn
             (setq nearby-texts '())
@@ -1003,6 +1002,7 @@
           (setq zone-name (substr zone-name 1 30)))
 
         (princ (strcat "\n[T24] Zone name: \"" zone-name "\""))
+        (princ (strcat "\n[TIME] Text search: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (princ (strcat "\n[T24] Click point: " (rtos (car txt-pt) 2 2) ", " (rtos (cadr txt-pt) 2 2)))
 
         ;; ── Freeze text layers + door layers before BOUNDARY ──────────────
@@ -1025,7 +1025,9 @@
 
         ;; ── Run boundary ──
         (princ "\n[T24] Running BOUNDARY...")
+        (setq *tz-t0* (getvar "MILLISECS"))
         (setq ent (tz-hatch-boundary txt-pt gap-tol))
+        (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (if ent
           (princ "\n[T24] Boundary created.")
           (princ "\n[T24] Boundary returned nil."))
@@ -1102,14 +1104,24 @@
         (if ent
           (progn
             ;; Collapse door notches (arc + tiny segs + door panel)
+            (setq *tz-t0* (getvar "MILLISECS"))
             (tz-door-collapse ent)
+            (princ (strcat "\n[TIME] Door collapse: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
 
             ;; Merge collinear segments (BOUNDARY splits straight walls)
+            (setq *tz-t0* (getvar "MILLISECS"))
             (tz-merge-collinear ent)
+            (princ (strcat "\n[TIME] Merge collinear: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
 
             ;; Shape simplification (set by TZ-ZONE1/2/3, nil for normal TZ-ZONE)
-            (if *TZ-SHAPE-MODE* (tz-shape-simplify ent *TZ-SHAPE-MODE*))
+            (if *TZ-SHAPE-MODE*
+              (progn
+                (setq *tz-t0* (getvar "MILLISECS"))
+                (tz-shape-simplify ent *TZ-SHAPE-MODE*)
+                (princ (strcat "\n[TIME] Shape simplify: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))))
 
+            ;; Finalize: layer, area, xdata, label, reactor
+            (setq *tz-t0* (getvar "MILLISECS"))
             ;; Move to T24-ZONE layer if BOUNDARY put it elsewhere
             (setq edata (entget ent))
             (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
@@ -1144,6 +1156,7 @@
                       '((:vlr-modified . tz-zone-modified-callback)))
                     (if *TZ-REACTORS* *TZ-REACTORS* '())))
 
+            (princ (strcat "\n[TIME] Finalize: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
             (princ (strcat "\n[T24] Tagged: \"" zone-name
                            "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor))))
           (princ "\n[T24] No boundary created, skipping this zone."))
