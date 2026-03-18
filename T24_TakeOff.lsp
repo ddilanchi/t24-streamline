@@ -537,6 +537,49 @@
   (repeat n (vla-SetBulge obj i 0.0) (setq i (1+ i))))
 
 
+;; Scan for nearby text around a world-coordinate point using nentselp.
+;; Probes a grid of points within radius, reads text/attrib values,
+;; and adds unique results to outer-scope nearby-texts list.
+;; Works correctly with XREFs (nentselp penetrates them).
+(defun tz-scan-nearby-text (center-pt skip-ent skip-str radius
+                            / step gx gy probe-pt sel2 ent2 ed2 str2 lyr2
+                              pt2 dist2 seen)
+  (setq step (/ radius 3.0)  ;; probe every ~12" in a grid
+        seen '())
+  (setq gx (- radius))
+  (while (<= gx radius)
+    (setq gy (- radius))
+    (while (<= gy radius)
+      (setq probe-pt (list (+ (car center-pt) gx)
+                           (+ (cadr center-pt) gy)
+                           0.0))
+      (setq sel2 (nentselp probe-pt))
+      (if (and sel2 (listp sel2))
+        (progn
+          (setq ent2 (car sel2)
+                ed2  (entget ent2))
+          (if (and (member (cdr (assoc 0 ed2)) '("TEXT" "MTEXT" "ATTRIB"))
+                   (not (eq ent2 skip-ent))
+                   (not (member (vla-get-handle (vlax-ename->vla-object ent2)) seen)))
+            (progn
+              (setq str2 (vl-string-trim " " (cdr (assoc 1 ed2)))
+                    lyr2 (cdr (assoc 8 ed2)))
+              ;; Track by handle so we don't add duplicates
+              (setq seen (cons (vla-get-handle (vlax-ename->vla-object ent2)) seen))
+              (if (and (/= str2 "")
+                       (/= str2 skip-str)
+                       (not (tz-skip-text-p str2))
+                       (not (wcmatch (strcase lyr2) "T24-*")))
+                (progn
+                  ;; Use world-coordinate distance from click point
+                  (setq pt2 (cadr sel2)  ;; nentselp returns pick point
+                        dist2 (distance (list (car center-pt) (cadr center-pt))
+                                        (list (car pt2) (cadr pt2))))
+                  (setq nearby-texts
+                    (cons (list dist2 str2) nearby-texts))))))))
+      (setq gy (+ gy step)))
+    (setq gx (+ gx step))))
+
 ;; Returns T if string looks like a label we should skip (not a room number).
 ;; Matches: sqft labels, occupancy codes, condition labels, etc.
 (defun tz-skip-text-p (s / up)
@@ -939,116 +982,17 @@
         ;; Start undo group so "Undo" keyword can revert this entire zone
         (command "_.UNDO" "_Begin")
         ;; ── Auto-find nearby text to build full name ────────────────────
-        ;; Only search for nearby room number when we clicked an actual entity
-        (if txt-edata
+        ;; Use nentselp at grid of points around click to find nearby visible
+        ;; text in world space (works correctly with XREFs).
+        (if txt-pt
           (progn
-            ;; Get clicked text position in its coordinate space
-            (setq txt-ins (cdr (assoc 10 txt-edata))
-                  nearby-texts '())
-            ;; Prefer alignment point (group 11) if set
-            (if (and (assoc 11 txt-edata)
-                     (not (equal (cdr (assoc 11 txt-edata)) '(0.0 0.0 0.0) 0.01)))
-              (setq txt-ins (cdr (assoc 11 txt-edata))))
-
-            (if (>= (length sel) 4)
-              ;; ── Nested entity (xref/block) — walk the block definition ──
-              (progn
-                (setq blk-ref  (car (cadddr sel))
-                      blk-name (cdr (assoc 2 (entget blk-ref)))
-                      blk-def  (tblobjname "BLOCK" blk-name)
-                      blk-ref-lyr (cdr (assoc 8 (entget blk-ref))))
-                (if blk-def
-                  (progn
-                    (setq near-ent (entnext blk-def))
-                    (while near-ent
-                      (setq near-ed (entget near-ent))
-                      (cond
-                        ;; Direct TEXT/MTEXT in block
-                        ((and (member (cdr (assoc 0 near-ed)) '("TEXT" "MTEXT"))
-                              (not (eq near-ent txt-ent)))
-                         (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed)))
-                               near-lyr (cdr (assoc 8 near-ed)))
-                         ;; Layer "0" inherits the INSERT's layer
-                         (if (= near-lyr "0") (setq near-lyr blk-ref-lyr))
-                         (if (and (/= near-str "")
-                                  (tz-layer-visible-p near-lyr))
-                           (progn
-                             (setq near-pt (cdr (assoc 10 near-ed)))
-                             (if (and (assoc 11 near-ed)
-                                      (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
-                               (setq near-pt (cdr (assoc 11 near-ed))))
-                             (setq near-dist (distance txt-ins near-pt))
-                             (if (and (< near-dist 36.0)
-                                      (not (tz-skip-text-p near-str)))
-                               (setq nearby-texts
-                                 (cons (list near-dist near-str) nearby-texts))))))
-                        ;; INSERT (sub-block) -- check its ATTRIBs for text
-                        ((= (cdr (assoc 0 near-ed)) "INSERT")
-                         ;; ATTRIBs follow the INSERT as ATTRIB entities
-                         (if (= (cdr (assoc 66 near-ed)) 1)  ; has attribs
-                           (progn
-                             (setq sub-ent (entnext near-ent))
-                             (while (and sub-ent
-                                         (setq sub-ed (entget sub-ent))
-                                         (= (cdr (assoc 0 sub-ed)) "ATTRIB"))
-                               (setq near-str (vl-string-trim " " (cdr (assoc 1 sub-ed)))
-                                     near-lyr (cdr (assoc 8 sub-ed)))
-                               (if (= near-lyr "0") (setq near-lyr blk-ref-lyr))
-                               (if (and (/= near-str "")
-                                        (tz-layer-visible-p near-lyr))
-                                 (progn
-                                   (setq near-pt (cdr (assoc 10 sub-ed)))
-                                   (if (and (assoc 11 sub-ed)
-                                            (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
-                                     (setq near-pt (cdr (assoc 11 sub-ed))))
-                                   (setq near-dist (distance txt-ins near-pt))
-                                   (if (and (< near-dist 36.0)
-                                            (not (tz-skip-text-p near-str)))
-                                     (setq nearby-texts
-                                       (cons (list near-dist near-str) nearby-texts)))))
-                               (setq sub-ent (entnext sub-ent)))))))
-                      (setq near-ent (entnext near-ent)))))))
-
-              ;; ── Not nested -- spatial ssget within 36" box only ──
-              (if txt-lyr
-                (progn
-                  (setq ss-near (ssget "C"
-                                  (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
-                                  (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
-                                  (list (cons 8 txt-lyr)
-                                        '(-4 . "<OR")
-                                          '(0 . "TEXT")
-                                          '(0 . "MTEXT")
-                                        '(-4 . "OR>"))))
-                  (if ss-near
-                    (progn
-                      (setq j 0)
-                      (repeat (sslength ss-near)
-                        (setq near-ent (ssname ss-near j)
-                              near-ed  (entget near-ent))
-                        (if (and (not (equal near-ent txt-ent))
-                                 (tz-ent-visible-p near-ent))
-                          (progn
-                            (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed))))
-                            (if (and (/= near-str "") (/= near-str zone-name))
-                              (progn
-                                (setq near-pt (cdr (assoc 10 near-ed)))
-                                (if (and (assoc 11 near-ed)
-                                         (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
-                                  (setq near-pt (cdr (assoc 11 near-ed))))
-                                (setq near-dist (distance txt-ins near-pt))
-                                (if (and (< near-dist 36.0)
-                                         (not (tz-skip-text-p near-str)))
-                                  (setq nearby-texts
-                                    (cons (list near-dist near-str) nearby-texts)))))))
-                        (setq j (1+ j)))))))
-
+            (setq nearby-texts '())
+            (tz-scan-nearby-text txt-pt txt-ent zone-name 36.0)
             ;; Sort by distance, append only the closest one
             (if nearby-texts
               (progn
                 (setq nearby-texts
                   (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
-                ;; Debug: show all candidates
                 (princ (strcat "\n[T24]   Found " (itoa (length nearby-texts)) " nearby text(s):"))
                 (foreach nt nearby-texts
                   (princ (strcat "\n[T24]     " (rtos (car nt) 2 1) "\" \"" (cadr nt) "\"")))
