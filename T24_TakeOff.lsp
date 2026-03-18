@@ -537,6 +537,22 @@
   (repeat n (vla-SetBulge obj i 0.0) (setq i (1+ i))))
 
 
+;; Returns T if string looks like a label we should skip (not a room number).
+;; Matches: sqft labels, occupancy codes, condition labels, etc.
+(defun tz-skip-text-p (s / up)
+  (setq up (strcase s))
+  (or (wcmatch up "OCC")
+      (wcmatch up "OCCUPANCY")
+      (wcmatch up "COND")
+      (wcmatch up "CONDITIONED")
+      (wcmatch up "UNCONDITIONED")
+      (wcmatch up "UNCOND")
+      (wcmatch up "PLENUM")
+      (wcmatch up "GARAGE")
+      (wcmatch up "EXTERIOR")
+      (wcmatch up "ATTIC")
+      (tz-sqft-text-p s)))
+
 ;; Returns T if string looks like a square-footage label (e.g. "250 SQ. FT.")
 (defun tz-sqft-text-p (s / up)
   (setq up (strcase s))
@@ -544,7 +560,7 @@
       (wcmatch up "*SQ. FT*")
       (wcmatch up "*SQ FT*")
       (wcmatch up "*S.F.*")
-      ;; Number followed by SF/FT unit — but not bare numbers (those are room numbers)
+      ;; Number followed by SF/FT unit -- but not bare numbers (those are room numbers)
       (wcmatch up "*#` SF")
       (wcmatch up "*#` FT")))
 
@@ -950,11 +966,11 @@
                                       (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                                (setq near-pt (cdr (assoc 11 near-ed))))
                              (setq near-dist (distance txt-ins near-pt))
-                             (if (and (< near-dist 36.0)
-                                      (not (tz-sqft-text-p near-str)))
+                             (if (and (< near-dist 18.0)
+                                      (not (tz-skip-text-p near-str)))
                                (setq nearby-texts
                                  (cons (list near-dist near-str) nearby-texts))))))
-                        ;; INSERT (sub-block) — check its ATTRIBs for text
+                        ;; INSERT (sub-block) -- check its ATTRIBs for text
                         ((= (cdr (assoc 0 near-ed)) "INSERT")
                          ;; ATTRIBs follow the INSERT as ATTRIB entities
                          (if (= (cdr (assoc 66 near-ed)) 1)  ; has attribs
@@ -974,19 +990,19 @@
                                             (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
                                      (setq near-pt (cdr (assoc 11 sub-ed))))
                                    (setq near-dist (distance txt-ins near-pt))
-                                   (if (and (< near-dist 36.0)
-                                            (not (tz-sqft-text-p near-str)))
+                                   (if (and (< near-dist 18.0)
+                                            (not (tz-skip-text-p near-str)))
                                      (setq nearby-texts
                                        (cons (list near-dist near-str) nearby-texts)))))
                                (setq sub-ent (entnext sub-ent)))))))
                       (setq near-ent (entnext near-ent)))))))
 
-              ;; ── Not nested — spatial ssget within 36" box only ──
+              ;; ── Not nested -- spatial ssget within 18" box only ──
               (if txt-lyr
                 (progn
                   (setq ss-near (ssget "C"
-                                  (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
-                                  (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
+                                  (list (- (car txt-ins) 18.0) (- (cadr txt-ins) 18.0) 0.0)
+                                  (list (+ (car txt-ins) 18.0) (+ (cadr txt-ins) 18.0) 0.0)
                                   (list (cons 8 txt-lyr)
                                         '(-4 . "<OR")
                                           '(0 . "TEXT")
@@ -1009,8 +1025,8 @@
                                          (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
                                   (setq near-pt (cdr (assoc 11 near-ed))))
                                 (setq near-dist (distance txt-ins near-pt))
-                                (if (and (< near-dist 36.0)
-                                         (not (tz-sqft-text-p near-str)))
+                                (if (and (< near-dist 18.0)
+                                         (not (tz-skip-text-p near-str)))
                                   (setq nearby-texts
                                     (cons (list near-dist near-str) nearby-texts)))))))
                         (setq j (1+ j)))))))
