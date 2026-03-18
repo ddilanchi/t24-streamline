@@ -2564,6 +2564,184 @@
 (c:TZ-WATCH)
 
 
+;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
+;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
+;; Z-elevations, blocks/proxies, and tries BOUNDARY at multiple gap tolerances.
+;; Leaves result polylines visible for inspection.
+(defun c:TZ-ZTEST ( / pt radius ss i ent ed etype lyr elev
+                       type-counts z-vals z-val block-names proxy-count
+                       aec-count xref-count total
+                       gap-list gap last-ent scan-ent new-ent area-sqft
+                       results ce saved-gaptol)
+  (tz-setup)
+  (setq ce (getvar "CMDECHO"))
+  (setvar "CMDECHO" 0)
+
+  ;; ── Pick point ──
+  (setq pt (getpoint "\n[ZTEST] Click inside room to diagnose: "))
+  (if (null pt) (progn (setvar "CMDECHO" ce) (princ "\n[ZTEST] Cancelled.") (exit)))
+
+  (princ (strcat "\n[ZTEST] Point: " (rtos (car pt) 2 4) ", " (rtos (cadr pt) 2 4)
+                 ", Z=" (rtos (if (caddr pt) (caddr pt) 0.0) 2 4)))
+
+  ;; ── Scan nearby geometry ──
+  (setq radius 600.0)  ; 50 feet in inches
+  (princ (strcat "\n[ZTEST] Scanning entities within " (rtos radius 2 0) "\" radius..."))
+  (setq ss (ssget "_C"
+             (list (- (car pt) radius) (- (cadr pt) radius))
+             (list (+ (car pt) radius) (+ (cadr pt) radius))))
+
+  (if (null ss)
+    (princ "\n[ZTEST] WARNING: No entities found near pick point!")
+    (progn
+      (setq total (sslength ss)
+            type-counts '()
+            z-vals '()
+            block-names '()
+            proxy-count 0
+            aec-count 0
+            xref-count 0
+            i 0)
+      (repeat total
+        (setq ent (ssname ss i)
+              ed  (entget ent)
+              etype (cdr (assoc 0 ed))
+              lyr   (cdr (assoc 8 ed)))
+
+        ;; Count entity types
+        (setq type-counts
+          (if (assoc etype type-counts)
+            (mapcar '(lambda (x) (if (equal (car x) etype) (cons etype (1+ (cdr x))) x))
+                    type-counts)
+            (cons (cons etype 1) type-counts)))
+
+        ;; Check Z-elevations
+        (cond
+          ((assoc 38 ed)  ; LWPOLYLINE elevation
+           (setq z-val (cdr (assoc 38 ed)))
+           (if (not (member z-val z-vals)) (setq z-vals (cons z-val z-vals))))
+          ((assoc 10 ed)  ; Insertion/start point Z
+           (setq z-val (caddr (cdr (assoc 10 ed))))
+           (if (and z-val (not (member z-val z-vals)))
+             (setq z-vals (cons z-val z-vals)))))
+
+        ;; Check for problematic entity types
+        (cond
+          ((= etype "INSERT")
+           (setq block-names (cons (cdr (assoc 2 ed)) block-names)))
+          ((or (= etype "ACAD_PROXY_ENTITY") (wcmatch etype "Aec*,aec*"))
+           (setq proxy-count (1+ proxy-count)))
+          ((wcmatch etype "*XREF*,*Xref*")
+           (setq xref-count (1+ xref-count))))
+
+        (setq i (1+ i)))
+
+      ;; ── Report ──
+      (princ (strcat "\n[ZTEST] " (itoa total) " entities found:"))
+      (foreach tc (vl-sort type-counts '(lambda (a b) (> (cdr a) (cdr b))))
+        (princ (strcat "\n[ZTEST]   " (car tc) ": " (itoa (cdr tc)))))
+
+      ;; Z-elevations
+      (princ (strcat "\n[ZTEST] Z-elevations found: "
+        (if z-vals
+          (apply 'strcat (mapcar '(lambda (z) (strcat (rtos z 2 4) " ")) z-vals))
+          "none detected")))
+      (if (> (length z-vals) 1)
+        (princ "\n[ZTEST] *** WARNING: Multiple Z-elevations! BOUNDARY may not see all geometry. ***"))
+
+      ;; Blocks
+      (if block-names
+        (progn
+          (princ (strcat "\n[ZTEST] Block references found (" (itoa (length block-names)) "):"))
+          ;; Show unique block names
+          (foreach bn (vl-remove-if
+                        '(lambda (x) (member x (cdr (member x block-names))))
+                        block-names)
+            (princ (strcat "\n[ZTEST]   INSERT: \"" bn "\"")))
+          (princ "\n[ZTEST] *** WARNING: Blocks are invisible to BOUNDARY. Explode them first. ***")))
+
+      ;; Proxies / AEC
+      (if (> proxy-count 0)
+        (princ (strcat "\n[ZTEST] *** WARNING: " (itoa proxy-count) " proxy/AEC entities — BOUNDARY ignores these! ***")))
+
+      ;; Layer summary
+      (princ "\n[ZTEST] Current ELEVATION sysvar: ")
+      (princ (rtos (getvar "ELEVATION") 2 4))
+    ))
+
+  ;; ── Try BOUNDARY at multiple gap tolerances ──
+  (princ "\n\n[ZTEST] === BOUNDARY attempts ===")
+  (setq gap-list '(0.0 1.0 4.0 12.0 36.0 48.0)
+        saved-gaptol (getvar "HPGAPTOL")
+        results '())
+
+  (command "_.ZOOM" "_Extents")
+
+  (foreach gap gap-list
+    (setvar "HPGAPTOL" gap)
+    (setq last-ent (entlast))
+    (command "_-BOUNDARY" pt "")
+
+    (if (equal (entlast) last-ent)
+      (progn
+        (princ (strcat "\n[ZTEST] Gap " (rtos gap 2 1) "\": FAILED (no entity created)")))
+      (progn
+        ;; Collect all created entities
+        (setq scan-ent (entnext last-ent)  new-ent nil  area-sqft 0.0)
+        (while scan-ent
+          (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
+            (progn
+              (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object scan-ent))
+                                 (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+              (if (null new-ent)
+                (setq new-ent scan-ent)
+                ;; Keep the smallest polyline (likely the room, not an escape)
+                (if (< area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
+                                    (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+                  (progn (entdel new-ent) (setq new-ent scan-ent))
+                  (entdel scan-ent)))))
+          (setq scan-ent (entnext scan-ent)))
+
+        (if new-ent
+          (progn
+            (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
+                               (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+            (princ (strcat "\n[ZTEST] Gap " (rtos gap 2 1) "\": "
+                           (rtos area-sqft 2 1) " sqft"
+                           (if (> area-sqft 5000.0) "  *** LIKELY ESCAPED ***" "")))
+            ;; Color-code and keep the first successful result for visual inspection
+            (if (null results)
+              (progn
+                ;; Keep this one — color it green
+                (entmod (subst '(62 . 3) (assoc 62 (entget new-ent))
+                               (if (assoc 62 (entget new-ent))
+                                 (entget new-ent)
+                                 (append (entget new-ent) '((62 . 3))))))
+                ;; Move to diagnostic layer
+                (entmod (subst (cons 8 *TZ-LYR-LABEL*) (assoc 8 (entget new-ent)) (entget new-ent)))
+                (setq results (cons (cons gap new-ent) results))
+                (princ "  [KEPT - green]"))
+              ;; Delete subsequent results
+              (entdel new-ent)))
+          (princ (strcat "\n[ZTEST] Gap " (rtos gap 2 1) "\": created entity but no polyline"))))))
+
+  (command "_.ZOOM" "_Previous")
+  (setvar "HPGAPTOL" saved-gaptol)
+
+  ;; ── Summary ──
+  (princ "\n\n[ZTEST] === Summary ===")
+  (if results
+    (princ "\n[ZTEST] First successful boundary kept on T24-LABEL layer (green).")
+    (princ "\n[ZTEST] All attempts failed. Room geometry is likely not primitive lines/arcs."))
+  (princ "\n[ZTEST] Suggestions if BOUNDARY escapes:")
+  (princ "\n[ZTEST]   1. EXPLODE all blocks near the room (check INSERT count above)")
+  (princ "\n[ZTEST]   2. Check Z-elevations: FLATTEN or set ELEVATION sysvar")
+  (princ "\n[ZTEST]   3. Look for proxy/AEC entities (need BURST or EXPLODEPROXY)")
+  (princ "\n[ZTEST]   4. Check for overlapping duplicate lines on same edge")
+  (princ "\n[ZTEST]   5. Use TZ-ZONE fallback: Draw rectangle or Draw polyline")
+  (setvar "CMDECHO" ce)
+  (princ))
+
 ;; ── Load message ─────────────────────────────────────────────────────────────
 (princ "\n")
 (princ "\n+--------------------------------------------+")
@@ -2581,6 +2759,7 @@
 (princ "\n|  TZ-EXPORT-ALL- Export all open drawings   |")
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
+(princ "\n|  TZ-ZTEST     - Diagnose boundary issues    |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
