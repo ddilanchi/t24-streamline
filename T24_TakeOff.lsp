@@ -2581,200 +2581,355 @@
 (c:TZ-WATCH)
 
 
-;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
-;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
-;; Z-elevations, blocks/proxies, and tries BOUNDARY at multiple gap tolerances.
-;; Leaves result polylines visible for inspection.
-(defun c:TZ-ZTEST ( / pt radius ss i ent ed etype lyr elev
-                       type-counts z-vals z-val block-names proxy-count
-                       aec-count xref-count total
-                       gap-list gap last-ent scan-ent new-ent area-sqft
-                       results ce saved-gaptol)
+;; ── Convex hull (Graham scan) ────────────────────────────────────────────────
+;; Computes convex hull of a list of 2D points. Returns points in CCW order.
+(defun tz-cross-2d (o a b)
+  "2D cross product of vectors OA and OB."
+  (* 1.0 (- (* (- (car a) (car o))  (- (cadr b) (cadr o)))
+             (* (- (cadr a) (cadr o)) (- (car b) (car o))))))
+
+(defun tz-convex-hull (pts / sorted n lower upper p i)
+  "Graham scan — returns convex hull as list of (x y) in CCW order."
+  (if (<= (length pts) 2) pts
+    (progn
+      ;; Sort by X, then Y
+      (setq sorted (vl-sort pts
+        '(lambda (a b) (if (= (car a) (car b)) (< (cadr a) (cadr b)) (< (car a) (car b))))))
+      (setq n (length sorted))
+      ;; Build lower hull
+      (setq lower '())
+      (foreach p sorted
+        (while (and (>= (length lower) 2)
+                    (<= (tz-cross-2d (nth (- (length lower) 2) lower)
+                                     (nth (- (length lower) 1) lower) p) 0.0))
+          (setq lower (reverse (cdr (reverse lower)))))
+        (setq lower (append lower (list p))))
+      ;; Build upper hull
+      (setq upper '())
+      (foreach p (reverse sorted)
+        (while (and (>= (length upper) 2)
+                    (<= (tz-cross-2d (nth (- (length upper) 2) upper)
+                                     (nth (- (length upper) 1) upper) p) 0.0))
+          (setq upper (reverse (cdr (reverse upper)))))
+        (setq upper (append upper (list p))))
+      ;; Concatenate, removing duplicate endpoints
+      (append (reverse (cdr (reverse lower))) (reverse (cdr (reverse upper)))))))
+
+(defun tz-make-convex (ent / pts hull obj)
+  "Replace a polyline's vertices with its convex hull."
+  (setq pts (tz-get-pts ent)
+        hull (tz-convex-hull pts))
+  (if (and hull (>= (length hull) 3))
+    (progn
+      (setq obj (vlax-ename->vla-object ent))
+      (tz-set-pline-verts obj
+        (mapcar '(lambda (p) (list (car p) (cadr p) 0.0)) hull))
+      (princ (strcat "\n[T24] Convex hull: " (itoa (length pts)) " -> "
+                     (itoa (length hull)) " vertices"))
+      T)
+    (progn (princ "\n[T24] Convex hull failed, keeping original.") nil)))
+
+;; ── TZ-ZONE1 — Convex hull variant of TZ-ZONE ──────────────────────────────
+;; Identical to TZ-ZONE except the resulting boundary polyline is forced to
+;; its convex hull. Useful when BOUNDARY produces jagged/concave results
+;; or when a simplified shape is acceptable.
+(defun c:TZ-ZONE1 ( / *error* sel sel2 txt-ent txt-edata txt-str txt-lyr txt-pt
+                      ent last-ent pts area-ft centroid
+                      zone-id zone-name ceil-ht floor condition occupancy
+                      ce cd cl edata froze txt-lyrs-frozen gap-tol hpg-save
+                      txt-layers choice ldata ed2
+                      patch-lines pp1 pp2
+                      ss-near j near-ent near-ed near-str near-pt near-dist
+                      nearby-texts txt-ins blk-ref blk-name blk-def blk-ref-lyr
+                      sub-ent sub-ed near-lyr)
+  (*push-error-using-command*)
+  (setq *TZ-BUSY* T)
+
+  (defun *error* (msg)
+    (setq *TZ-BUSY* nil)
+    (if ce (setvar "CMDECHO" ce))
+    (if cd (setvar "CMDDIA"  cd))
+    (if cl (setvar "CLAYER"  cl))
+    (if froze (tz-thaw-layers froze))
+    (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
+    (if hpg-save (setvar "HPGAPTOL" hpg-save) (setvar "HPGAPTOL" 0.0))
+    (*pop-error-using-command*)
+    (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
+      (princ (strcat "\n[T24] Error: " msg)))
+    (princ))
+
   (tz-setup)
-  (setq ce (getvar "CMDECHO"))
-  (setvar "CMDECHO" 0)
+  (setq ce nil  cd nil  cl nil  froze nil  txt-lyrs-frozen nil
+        hpg-save (getvar "HPGAPTOL"))
 
-  ;; ── Pick point ──
-  (setq pt (getpoint "\n[ZTEST] Click inside room to diagnose: "))
-  (if (null pt) (progn (setvar "CMDECHO" ce) (princ "\n[ZTEST] Cancelled.") (exit)))
+  (setq ceil-ht 9.0  floor 1  gap-tol 1.0)
+  (tz-session-dialog)
 
-  (princ (strcat "\n[ZTEST] Point: " (rtos (car pt) 2 4) ", " (rtos (cadr pt) 2 4)
-                 ", Z=" (rtos (if (caddr pt) (caddr pt) 0.0) 2 4)))
+  (setq condition "Conditioned"
+        occupancy "Residential")
 
-  ;; ── Scan nearby geometry ──
-  (setq radius 600.0)  ; 50 feet in inches
-  (princ (strcat "\n[ZTEST] Scanning entities within " (rtos radius 2 0) "\" radius..."))
-  (setq ss (ssget "_C"
-             (list (- (car pt) radius) (- (cadr pt) radius))
-             (list (+ (car pt) radius) (+ (cadr pt) radius))))
+  (princ (strcat "\n[T24-Z1] Session: " (rtos ceil-ht 2 1) "' ceiling  |  Floor " (itoa floor)
+                 "  |  Gap tol " (rtos gap-tol 2 1) "\""
+                 "  |  CZ " *TZ-CLIMATE-ZONE*
+                 "  |  North " (rtos *TZ-NORTH-ANGLE* 2 1) (chr 176)))
+  (princ "\n[T24-Z1] CONVEX HULL mode — boundaries will be simplified to convex shape.")
+  (princ "\n[T24-Z1] Click room name text for each zone. Enter when done.")
 
-  (if (null ss)
-    (princ "\n[ZTEST] WARNING: No entities found near pick point!")
+  ;; ── Main room loop (same as TZ-ZONE) ──
+  (while
     (progn
-      (setq total (sslength ss)
-            type-counts '()
-            z-vals '()
-            block-names '()
-            proxy-count 0
-            aec-count 0
-            xref-count 0
-            i 0)
-      (repeat total
-        (setq ent (ssname ss i)
-              ed  (entget ent)
-              etype (cdr (assoc 0 ed))
-              lyr   (cdr (assoc 8 ed)))
-
-        ;; Count entity types
-        (setq type-counts
-          (if (assoc etype type-counts)
-            (mapcar '(lambda (x) (if (equal (car x) etype) (cons etype (1+ (cdr x))) x))
-                    type-counts)
-            (cons (cons etype 1) type-counts)))
-
-        ;; Check Z-elevations
-        (cond
-          ((assoc 38 ed)  ; LWPOLYLINE elevation
-           (setq z-val (cdr (assoc 38 ed)))
-           (if (not (member z-val z-vals)) (setq z-vals (cons z-val z-vals))))
-          ((assoc 10 ed)  ; Insertion/start point Z
-           (setq z-val (caddr (cdr (assoc 10 ed))))
-           (if (and z-val (not (member z-val z-vals)))
-             (setq z-vals (cons z-val z-vals)))))
-
-        ;; Check for problematic entity types
-        (cond
-          ((= etype "INSERT")
-           (setq block-names (cons (cdr (assoc 2 ed)) block-names)))
-          ((or (= etype "ACAD_PROXY_ENTITY") (wcmatch etype "Aec*,aec*"))
-           (setq proxy-count (1+ proxy-count)))
-          ((wcmatch etype "*XREF*,*Xref*")
-           (setq xref-count (1+ xref-count))))
-
-        (setq i (1+ i)))
-
-      ;; ── Report ──
-      (princ (strcat "\n[ZTEST] " (itoa total) " entities found:"))
-      (foreach tc (vl-sort type-counts '(lambda (a b) (> (cdr a) (cdr b))))
-        (princ (strcat "\n[ZTEST]   " (car tc) ": " (itoa (cdr tc)))))
-
-      ;; Z-elevations
-      (princ (strcat "\n[ZTEST] Z-elevations found: "
-        (if z-vals
-          (apply 'strcat (mapcar '(lambda (z) (strcat (rtos z 2 4) " ")) z-vals))
-          "none detected")))
-      (if (> (length z-vals) 1)
-        (princ "\n[ZTEST] *** WARNING: Multiple Z-elevations! BOUNDARY may not see all geometry. ***"))
-
-      ;; Blocks
-      (if block-names
-        (progn
-          (princ (strcat "\n[ZTEST] Block references found (" (itoa (length block-names)) "):"))
-          ;; Show unique block names
-          (foreach bn (vl-remove-if
-                        '(lambda (x) (member x (cdr (member x block-names))))
-                        block-names)
-            (princ (strcat "\n[ZTEST]   INSERT: \"" bn "\"")))
-          (princ "\n[ZTEST] *** WARNING: Blocks are invisible to BOUNDARY. Explode them first. ***")))
-
-      ;; Proxies / AEC
-      (if (> proxy-count 0)
-        (princ (strcat "\n[ZTEST] *** WARNING: " (itoa proxy-count) " proxy/AEC entities — BOUNDARY ignores these! ***")))
-
-      ;; Layer summary
-      (princ "\n[ZTEST] Current ELEVATION sysvar: ")
-      (princ (rtos (getvar "ELEVATION") 2 4))
-    ))
-
-  ;; ── Try BOUNDARY at multiple zoom levels and gap tolerances ──
-  (princ "\n\n[ZTEST] Running REGENALL...")
-  (command "_.REGENALL")
-  (setq gap-list '(0.0 1.0 4.0 12.0 36.0 48.0)
-        saved-gaptol (getvar "HPGAPTOL")
-        results '())
-
-  ;; Test at 3 zoom levels × 6 gap tolerances
-  (foreach zoom-info (list
-    (cons "Current zoom" nil)
-    (cons "Local zoom (100')" 1200.0)
-    (cons "Zoom Extents" T))
-
-    (princ (strcat "\n\n[ZTEST] === " (car zoom-info) " ==="))
-
-    ;; Set zoom level
-    (cond
-      ((null (cdr zoom-info)) nil)  ; current zoom, do nothing
-      ((= (cdr zoom-info) T)        ; zoom extents
-       (command "_.ZOOM" "_Extents"))
-      (T                             ; local window
-       (command "_.ZOOM" "_Window"
-         (list (- (car pt) (cdr zoom-info)) (- (cadr pt) (cdr zoom-info)))
-         (list (+ (car pt) (cdr zoom-info)) (+ (cadr pt) (cdr zoom-info))))))
-
-    (foreach gap gap-list
-      (setvar "HPGAPTOL" gap)
-      (setq last-ent (entlast))
-      (command "_-BOUNDARY" pt "")
-
-      (if (equal (entlast) last-ent)
-        (princ (strcat "\n[ZTEST]   Gap " (rtos gap 2 1) "\": FAILED"))
-        (progn
-          ;; Collect all created entities
-          (setq scan-ent (entnext last-ent)  new-ent nil  area-sqft 0.0)
-          (while scan-ent
-            (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
+      (setq zone-name nil  txt-lyr nil  txt-layers '()  txt-edata nil)
+      (setq sel T)
+      (while (and sel (null zone-name))
+        (initget "Undo")
+        (setq sel (nentsel "\n[T24-Z1] Click room name text [Undo] (Enter = manual entry): "))
+        (if (= sel "Undo")
+          (progn
+            (command "_.UNDO" "")
+            (princ "\n[T24-Z1] Last zone undone.")
+            (setq sel T))
+        (if sel
+          (progn
+            (setq txt-ent   (car sel)
+                  txt-pt    (cadr sel)
+                  txt-edata (entget txt-ent))
+            (if (member (cdr (assoc 0 txt-edata)) '("TEXT" "MTEXT"))
               (progn
-                (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object scan-ent))
-                                   (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-                (if (null new-ent)
-                  (setq new-ent scan-ent)
-                  ;; Keep the smallest polyline (likely the room, not an escape)
-                  (if (< area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
-                                      (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-                    (progn (entdel new-ent) (setq new-ent scan-ent))
-                    (entdel scan-ent)))))
-            (setq scan-ent (entnext scan-ent)))
+                (setq txt-str (vl-string-trim " " (cdr (assoc 1 txt-edata)))
+                      txt-lyr (cdr (assoc 8 txt-edata)))
+                (if (and txt-lyr (wcmatch txt-lyr "T24-*"))
+                  (princ "\n[T24-Z1] Clicked a T24 entity — try again.")
+                  (progn
+                    (if txt-lyr (setq txt-layers (list txt-lyr)))
+                    (if (= txt-str "") (setq txt-str nil))
+                    (setq zone-name txt-str))))
+              (princ "\n[T24-Z1] Not text — try again, or Enter for manual entry."))))))
+      (cond
+        (zone-name T)
+        (T
+         (setq txt-pt (getpoint "\n[T24-Z1] Click inside the room (Enter to finish all): "))
+         (if txt-pt
+           (progn
+             (setq zone-name (getstring T "\n[T24-Z1] Type zone name: "))
+             (if (= zone-name "") (setq zone-name nil))
+             T)
+           nil))))
 
-          (if new-ent
-            (progn
-              (setq area-sqft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
-                                 (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-              (princ (strcat "\n[ZTEST]   Gap " (rtos gap 2 1) "\": "
-                             (rtos area-sqft 2 1) " sqft"
-                             (if (> area-sqft 5000.0) "  *** ESCAPED ***" "")))
-              ;; Keep first reasonable result for visual inspection
-              (if (and (null results) (> area-sqft 10.0))
+    (if (null zone-name)
+      (princ "\n[T24-Z1] No name entered, skipping.")
+
+      (progn
+        (command "_.UNDO" "_Begin")
+        ;; ── Auto-find nearby text (same logic as TZ-ZONE) ──
+        (if txt-edata
+          (progn
+            (setq txt-ins (cdr (assoc 10 txt-edata))
+                  nearby-texts '())
+            (if (and (assoc 11 txt-edata)
+                     (not (equal (cdr (assoc 11 txt-edata)) '(0.0 0.0 0.0) 0.01)))
+              (setq txt-ins (cdr (assoc 11 txt-edata))))
+
+            (if (>= (length sel) 4)
+              (progn
+                (setq blk-ref  (car (cadddr sel))
+                      blk-name (cdr (assoc 2 (entget blk-ref)))
+                      blk-def  (tblobjname "BLOCK" blk-name)
+                      blk-ref-lyr (cdr (assoc 8 (entget blk-ref))))
+                (if blk-def
+                  (progn
+                    (setq near-ent (entnext blk-def))
+                    (while near-ent
+                      (setq near-ed (entget near-ent))
+                      (cond
+                        ((and (member (cdr (assoc 0 near-ed)) '("TEXT" "MTEXT"))
+                              (not (eq near-ent txt-ent)))
+                         (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed)))
+                               near-lyr (cdr (assoc 8 near-ed)))
+                         (if (= near-lyr "0") (setq near-lyr blk-ref-lyr))
+                         (if (and (/= near-str "") (tz-layer-visible-p near-lyr))
+                           (progn
+                             (setq near-pt (cdr (assoc 10 near-ed)))
+                             (if (and (assoc 11 near-ed)
+                                      (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
+                               (setq near-pt (cdr (assoc 11 near-ed))))
+                             (setq near-dist (distance txt-ins near-pt))
+                             (if (and (< near-dist 36.0) (not (tz-sqft-text-p near-str)))
+                               (setq nearby-texts (cons (list near-dist near-str) nearby-texts))))))
+                        ((= (cdr (assoc 0 near-ed)) "INSERT")
+                         (if (= (cdr (assoc 66 near-ed)) 1)
+                           (progn
+                             (setq sub-ent (entnext near-ent))
+                             (while (and sub-ent
+                                         (setq sub-ed (entget sub-ent))
+                                         (= (cdr (assoc 0 sub-ed)) "ATTRIB"))
+                               (setq near-str (vl-string-trim " " (cdr (assoc 1 sub-ed)))
+                                     near-lyr (cdr (assoc 8 sub-ed)))
+                               (if (= near-lyr "0") (setq near-lyr blk-ref-lyr))
+                               (if (and (/= near-str "") (tz-layer-visible-p near-lyr))
+                                 (progn
+                                   (setq near-pt (cdr (assoc 10 sub-ed)))
+                                   (if (and (assoc 11 sub-ed)
+                                            (not (equal (cdr (assoc 11 sub-ed)) '(0.0 0.0 0.0) 0.01)))
+                                     (setq near-pt (cdr (assoc 11 sub-ed))))
+                                   (setq near-dist (distance txt-ins near-pt))
+                                   (if (and (< near-dist 36.0) (not (tz-sqft-text-p near-str)))
+                                     (setq nearby-texts (cons (list near-dist near-str) nearby-texts)))))
+                               (setq sub-ent (entnext sub-ent)))))))
+                      (setq near-ent (entnext near-ent))))))
+
+              (if txt-lyr
                 (progn
-                  (entmod (subst '(62 . 3) (assoc 62 (entget new-ent))
-                                 (if (assoc 62 (entget new-ent))
-                                   (entget new-ent)
-                                   (append (entget new-ent) '((62 . 3))))))
-                  (entmod (subst (cons 8 *TZ-LYR-LABEL*) (assoc 8 (entget new-ent)) (entget new-ent)))
-                  (setq results (cons (list (car zoom-info) gap area-sqft new-ent) results))
-                  (princ "  [KEPT - green]"))
-                (entdel new-ent)))
-            (princ (strcat "\n[ZTEST]   Gap " (rtos gap 2 1) "\": entity created but no polyline"))))))
+                  (setq ss-near (ssget "C"
+                                  (list (- (car txt-ins) 36.0) (- (cadr txt-ins) 36.0) 0.0)
+                                  (list (+ (car txt-ins) 36.0) (+ (cadr txt-ins) 36.0) 0.0)
+                                  (list (cons 8 txt-lyr)
+                                        '(-4 . "<OR") '(0 . "TEXT") '(0 . "MTEXT") '(-4 . "OR>"))))
+                  (if ss-near
+                    (progn
+                      (setq j 0)
+                      (repeat (sslength ss-near)
+                        (setq near-ent (ssname ss-near j)
+                              near-ed  (entget near-ent))
+                        (if (and (not (equal near-ent txt-ent)) (tz-ent-visible-p near-ent))
+                          (progn
+                            (setq near-str (vl-string-trim " " (cdr (assoc 1 near-ed))))
+                            (if (and (/= near-str "") (/= near-str zone-name))
+                              (progn
+                                (setq near-pt (cdr (assoc 10 near-ed)))
+                                (if (and (assoc 11 near-ed)
+                                         (not (equal (cdr (assoc 11 near-ed)) '(0.0 0.0 0.0) 0.01)))
+                                  (setq near-pt (cdr (assoc 11 near-ed))))
+                                (setq near-dist (distance txt-ins near-pt))
+                                (if (and (< near-dist 36.0) (not (tz-sqft-text-p near-str)))
+                                  (setq nearby-texts (cons (list near-dist near-str) nearby-texts)))))))
+                        (setq j (1+ j)))))))
 
-    ;; Restore zoom if we changed it
-    (if (cdr zoom-info) (command "_.ZOOM" "_Previous")))
+            (if nearby-texts
+              (progn
+                (setq nearby-texts (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
+                (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))
+                (princ (strcat "\n[T24-Z1]   Auto-appended: \"" (cadr (car nearby-texts)) "\""))))))
+        (if (> (strlen zone-name) 30)
+          (setq zone-name (substr zone-name 1 30)))
 
-  (setvar "HPGAPTOL" saved-gaptol)
+        (princ (strcat "\n[T24-Z1] Zone name: \"" zone-name "\""))
 
-  ;; ── Summary ──
-  (princ "\n\n[ZTEST] === Summary ===")
-  (if results
-    (progn
-      (princ (strcat "\n[ZTEST] Best result: " (rtos (caddr (car results)) 2 1) " sqft"
-                     " at \"" (car (car results)) "\" gap=" (rtos (cadr (car results)) 2 1) "\""))
-      (princ "\n[ZTEST] Kept on T24-LABEL layer (green)."))
-    (princ "\n[ZTEST] All 18 attempts failed. BOUNDARY cannot see room geometry."))
-  (princ "\n[ZTEST] Suggestions if BOUNDARY escapes:")
-  (princ "\n[ZTEST]   1. EXPLODE all blocks near the room (check INSERT count above)")
-  (princ "\n[ZTEST]   2. Check Z-elevations: FLATTEN or set ELEVATION sysvar")
-  (princ "\n[ZTEST]   3. Look for proxy/AEC entities (need BURST or EXPLODEPROXY)")
-  (princ "\n[ZTEST]   4. Check for overlapping duplicate lines on same edge")
-  (princ "\n[ZTEST]   5. Use TZ-ZONE fallback: Draw rectangle or Draw polyline")
-  (setvar "CMDECHO" ce)
+        ;; ── Freeze text + run BOUNDARY ──
+        (setq ce (getvar "CMDECHO")
+              cd (getvar "CMDDIA")
+              cl (getvar "CLAYER"))
+        (setvar "CMDECHO" 0)
+        (setvar "CMDDIA"  0)
+        (setvar "CLAYER"  *TZ-LYR-ZONE*)
+
+        (if txt-lyr
+          (progn
+            (tz-freeze-layer txt-lyr)
+            (if (not (member txt-lyr txt-lyrs-frozen))
+              (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
+
+        (princ "\n[T24-Z1] Running BOUNDARY...")
+        (setq ent (tz-hatch-boundary txt-pt gap-tol))
+
+        ;; Fallback loop (same as TZ-ZONE)
+        (setq patch-lines '())
+        (while (and (null ent)
+                    (progn
+                      (princ "\n[T24-Z1] BOUNDARY failed.")
+                      (setq choice (tz-boundary-popup))
+                      (and choice (or (= choice "Retry") (= choice "Patch")))))
+          (if (= choice "Patch")
+            (progn
+              (princ "\n[T24-Z1]   Draw patch lines. Enter when done.")
+              (while (progn (setq pp1 (getpoint "\n[T24-Z1]   Line start (Enter to finish): "))
+                            (not (null pp1)))
+                (setq pp2 (getpoint pp1 "\n[T24-Z1]   Line end: "))
+                (if pp2 (progn (tz-make-line pp1 pp2) (setq patch-lines (cons (entlast) patch-lines)))))
+              (if patch-lines (setq ent (tz-hatch-boundary txt-pt gap-tol))))
+            (progn
+              (setq txt-pt (getpoint "\n[T24-Z1]   Click inside room: "))
+              (if txt-pt (setq ent (tz-hatch-boundary txt-pt gap-tol))))))
+
+        (foreach pent patch-lines (entdel pent))
+        (setvar "CMDDIA"  cd)
+        (setvar "CMDECHO" ce)
+        (setvar "CLAYER"  cl)
+
+        ;; Manual fallback
+        (if (null ent)
+          (cond
+            ((null choice) (princ "\n[T24-Z1] Cancelled."))
+            ((= choice "Select")
+             (progn
+               (princ "\n[T24-Z1] Select an existing closed polyline: ")
+               (setq sel2 (entsel))
+               (if sel2
+                 (progn
+                   (setq ent (car sel2))
+                   (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
+                     (progn (princ "\n[T24-Z1] Not a polyline.") (setq ent nil)))))))
+            ((= choice "Rect") (setq ent (tz-pick-rectangle)))
+            (T (setq ent (tz-pick-corners)))))
+
+        (if ent
+          (progn
+            ;; Door collapse + merge collinear (before convex hull)
+            (tz-door-collapse ent)
+            (tz-merge-collinear ent)
+
+            ;; *** CONVEX HULL — the one difference from TZ-ZONE ***
+            (tz-make-convex ent)
+
+            ;; Move to T24-ZONE layer
+            (setq edata (entget ent))
+            (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
+              (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 edata) edata)))
+
+            ;; Compute area and centroid
+            (setq pts      (tz-get-pts ent)
+                  area-ft  (/ (vlax-curve-getarea (vlax-ename->vla-object ent))
+                              (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
+                  centroid (tz-centroid pts)
+                  zone-id  (tz-next-zone-id))
+
+            ;; Store XDATA
+            (tz-set-xdata ent
+              (list *TZ-APP*
+                (cons 1000 "ZONE")
+                (cons 1000 zone-id)
+                (cons 1000 zone-name)
+                (cons 1040 ceil-ht)
+                (cons 1070 floor)
+                (cons 1000 condition)
+                (cons 1000 occupancy)))
+
+            (tz-zone-label txt-pt zone-name area-ft ceil-ht floor zone-id)
+
+            (setq *TZ-REACTORS*
+              (cons (vlr-object-reactor
+                      (list (vlax-ename->vla-object ent))
+                      "T24-Zone-Update"
+                      '((:vlr-modified . tz-zone-modified-callback)))
+                    (if *TZ-REACTORS* *TZ-REACTORS* '())))
+
+            (princ (strcat "\n[T24-Z1] Tagged: \"" zone-name
+                           "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor))))
+          (princ "\n[T24-Z1] No boundary created, skipping."))
+
+        (if txt-lyr
+          (progn
+            (princ (strcat "\n[T24-Z1] Thawing layer: " txt-lyr))
+            (tz-thaw-layer txt-lyr)))
+        (command "_.UNDO" "_End")
+            ))) ; end progn(zone-name), if zone-name, while
+
+  (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
+  (if froze (tz-thaw-layers froze))
+  (setq *TZ-BUSY* nil)
+  (*pop-error-using-command*)
+  (c:TZ-WATCH)
+  (tz-bring-to-front)
+  (princ "\n[T24-Z1] Done tagging zones (convex hull).")
   (princ))
 
 ;; ── Load message ─────────────────────────────────────────────────────────────
@@ -2794,7 +2949,7 @@
 (princ "\n|  TZ-EXPORT-ALL- Export all open drawings   |")
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
-(princ "\n|  TZ-ZTEST     - Diagnose boundary issues    |")
+(princ "\n|  TZ-ZONE1     - TZ-ZONE + convex hull       |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
