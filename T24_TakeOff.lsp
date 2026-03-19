@@ -513,24 +513,27 @@
 ;; ── Hatch-based boundary detection ──────────────────────────────────────────
 ;; Creates a temporary HATCH, extracts its associative boundary polyline,
 ;; then deletes the hatch. Works where _-BOUNDARY fails (XREF geometry).
-(defun tz-try-hatch-boundary (pt gap-tol / old-gaptol old-hpbound last-ent
+(defun tz-try-hatch-boundary (pt gap-tol / old-gaptol old-hpbound old-hpname
+                                           old-hpassoc last-ent
                                            hatch-ent scan-ent ent etype
-                                           best-area cur-area assoc-ents
-                                           boundary-ent)
+                                           best-area cur-area)
+  ;; Save and set sysvars
   (setq old-gaptol  (getvar "HPGAPTOL")
-        old-hpbound (getvar "HPBOUNDRETAIN"))
+        old-hpbound (getvar "HPBOUNDRETAIN")
+        old-hpname  (getvar "HPNAME")
+        old-hpassoc (getvar "HPASSOC"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 1)  ;; keep boundary polyline
+  (setvar "HPBOUNDRETAIN" 1)   ;; retain boundary polyline
+  (setvar "HPNAME" "SOLID")    ;; solid fill
+  (setvar "HPASSOC" 0)         ;; non-associative (simpler cleanup)
   (setq last-ent (entlast))
 
-  ;; Create hatch: solid fill, pick internal point, finish
-  (command "_-HATCH" "_Properties" "_Solid" "" "_Advanced"
-           "_Boundary" "_Polyline" "" pt "")
+  ;; Simple hatch: pick internal point, press Enter to finish
+  (command "_-HATCH" pt "")
 
   ;; Find what was created
   (if (not (equal (entlast) last-ent))
     (progn
-      ;; Walk new entities to find polylines and hatches
       (setq scan-ent (entnext last-ent)  ent nil  hatch-ent nil  best-area 0.0)
       (while scan-ent
         (setq etype (cdr (assoc 0 (entget scan-ent))))
@@ -539,19 +542,21 @@
            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
            (if (> cur-area best-area)
              (progn
-               (if ent (entdel ent))  ;; delete previous smaller polyline
+               (if ent (entdel ent))
                (setq best-area cur-area  ent scan-ent))
              (entdel scan-ent)))
           ((= etype "HATCH")
            (setq hatch-ent scan-ent))
-          (T
-           (entdel scan-ent)))  ;; delete anything else
+          (T (entdel scan-ent)))
         (setq scan-ent (entnext scan-ent)))
       ;; Delete the hatch, keep the boundary polyline
       (if hatch-ent (entdel hatch-ent))))
 
+  ;; Restore sysvars
   (setvar "HPGAPTOL" old-gaptol)
   (setvar "HPBOUNDRETAIN" old-hpbound)
+  (setvar "HPNAME" old-hpname)
+  (setvar "HPASSOC" old-hpassoc)
   ent)
 
 ;; Hatch-based version of tz-hatch-boundary
