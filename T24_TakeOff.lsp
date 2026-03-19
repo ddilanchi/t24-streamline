@@ -2914,6 +2914,209 @@
   (setvar "CMDECHO" ce)
   (princ))
 
+;; ── TZ-ZONETEST -- Benchmark 100 boundary detection methods ─────────────────
+
+;; Test helper: run BOUNDARY, return area in sqin or nil, delete all created entities
+(defun tz-zt-try-bound (pt gap / old-g last-ent scan-ent ent etype best cur
+                                  region-last ss-exp)
+  (setq old-g (getvar "HPGAPTOL"))
+  (setvar "HPGAPTOL" gap)
+  (setq last-ent (entlast))
+  (command "_-BOUNDARY" pt "")
+  (setq best 0.0  ent nil)
+  (if (not (equal (entlast) last-ent))
+    (progn
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (setq etype (cdr (assoc 0 (entget scan-ent))))
+        (if (= etype "REGION")
+          (progn
+            (setq region-last (entlast))
+            (command "_.EXPLODE" scan-ent "")
+            (setq ss-exp (ssadd)  scan-ent (entnext region-last))
+            (while scan-ent (ssadd scan-ent ss-exp) (setq scan-ent (entnext scan-ent)))
+            (if (> (sslength ss-exp) 0)
+              (command "_.PEDIT" (ssname ss-exp 0) "_Yes" "_Join" ss-exp "" ""))))
+        (setq scan-ent (entnext scan-ent)))
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
+          (progn
+            (setq cur (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
+            (if (> cur best) (setq best cur))))
+        (setq scan-ent (entnext scan-ent)))
+      ;; Delete all created entities
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (entdel scan-ent)
+        (setq scan-ent (entnext scan-ent)))))
+  (setvar "HPGAPTOL" old-g)
+  (if (> best 0.0) best nil))
+
+;; Test helper: run HATCH, return area in sqin or nil, delete all created entities
+(defun tz-zt-try-hatch (pt gap / old-g old-hpb old-hpn old-hpa last-ent
+                                  scan-ent ent etype hatch-ent best cur)
+  (setq old-g   (getvar "HPGAPTOL")
+        old-hpb (getvar "HPBOUNDRETAIN")
+        old-hpn (getvar "HPNAME")
+        old-hpa (getvar "HPASSOC"))
+  (setvar "HPGAPTOL" gap)
+  (setvar "HPBOUNDRETAIN" 1)
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
+  (setq last-ent (entlast))
+  (command "_-HATCH" pt "")
+  (setq best 0.0)
+  (if (not (equal (entlast) last-ent))
+    (progn
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (setq etype (cdr (assoc 0 (entget scan-ent))))
+        (if (= etype "LWPOLYLINE")
+          (progn
+            (setq cur (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
+            (if (> cur best) (setq best cur))))
+        (setq scan-ent (entnext scan-ent)))
+      ;; Delete all
+      (setq scan-ent (entnext last-ent))
+      (while scan-ent
+        (entdel scan-ent)
+        (setq scan-ent (entnext scan-ent)))))
+  (setvar "HPGAPTOL" old-g)
+  (setvar "HPBOUNDRETAIN" old-hpb)
+  (setvar "HPNAME" old-hpn)
+  (setvar "HPASSOC" old-hpa)
+  (if (> best 0.0) best nil))
+
+;; Zero-padded 3-digit number
+(defun tz-zt-pad3 (n)
+  (cond ((< n 10)  (strcat "00" (itoa n)))
+        ((< n 100) (strcat "0" (itoa n)))
+        (T (itoa n))))
+
+(defun c:TZ-ZONETEST ( / sel txt-pt txt-str expected tol-pct
+                         ce gap-list zoom-list
+                         test-num results
+                         t0 area-raw area-sqft elapsed pct-err passed
+                         pass-count passing fastest most-acc r)
+  (setq ce (getvar "CMDECHO"))
+  (setvar "CMDECHO" 0)
+
+  ;; Pick point
+  (setq sel (nentsel "\n[TEST] Click room name text: "))
+  (if (null sel) (progn (setvar "CMDECHO" ce) (princ "\n[TEST] Cancelled.") (exit)))
+  (setq txt-pt (cadr sel)
+        txt-str (if (member (cdr (assoc 0 (entget (car sel)))) '("TEXT" "MTEXT"))
+                  (cdr (assoc 1 (entget (car sel)))) ""))
+
+  ;; Get expected area and tolerance
+  (setq expected (getreal "\n[TEST] Expected area (sqft): "))
+  (if (null expected) (progn (setvar "CMDECHO" ce) (exit)))
+  (initget 6)
+  (setq tol-pct (getreal "\n[TEST] Tolerance % <5>: "))
+  (if (null tol-pct) (setq tol-pct 5.0))
+
+  (princ (strcat "\n[TEST] Point: " (rtos (car txt-pt) 2 1) ", " (rtos (cadr txt-pt) 2 1)
+                 "  \"" txt-str "\""))
+  (princ (strcat "\n[TEST] Expected: " (rtos expected 2 1) " sqft  Tol: " (rtos tol-pct 2 1) "%"))
+  (princ "\n[TEST] REGENALL...")
+  (command "_.REGENALL")
+  (princ "\n[TEST] Running 100 tests...")
+  (princ "\n[TEST] ---------------------------------------------------------")
+
+  (setq gap-list '(0.0 0.5 1.0 2.0 4.0 8.0 12.0 24.0 36.0 48.0)
+        zoom-list (list
+          (cons "curr" nil)
+          (cons "50ft" 600.0)
+          (cons "100f" 1200.0)
+          (cons "200f" 2400.0)
+          (cons "ext"  T))
+        test-num 0
+        results '())
+
+  (foreach zi zoom-list
+    ;; Set zoom
+    (cond
+      ((null (cdr zi)) nil)
+      ((= (cdr zi) T) (command "_.ZOOM" "_Extents"))
+      (T (command "_.ZOOM" "_Window"
+           (list (- (car txt-pt) (cdr zi)) (- (cadr txt-pt) (cdr zi)))
+           (list (+ (car txt-pt) (cdr zi)) (+ (cadr txt-pt) (cdr zi))))))
+
+    (foreach gap gap-list
+      ;; Test A: BOUNDARY
+      (setq test-num (1+ test-num)
+            t0 (getvar "MILLISECS")
+            area-raw (tz-zt-try-bound txt-pt gap)
+            elapsed (- (getvar "MILLISECS") t0))
+      (if area-raw
+        (progn
+          (setq area-sqft (/ area-raw (* 12.0 12.0))
+                pct-err (* 100.0 (/ (abs (- area-sqft expected)) expected))
+                passed (<= pct-err tol-pct))
+          (princ (strcat "\n[TEST] #" (tz-zt-pad3 test-num)
+                         " BOUND gap=" (rtos gap 2 1)
+                         " zoom=" (car zi)
+                         "  " (rtos area-sqft 2 1) " sqft  "
+                         (itoa (fix elapsed)) "ms  "
+                         (if passed "PASS" "FAIL")))
+          (setq results (cons (list test-num "BOUND" (car zi) gap area-sqft elapsed passed pct-err) results)))
+        (progn
+          (princ (strcat "\n[TEST] #" (tz-zt-pad3 test-num)
+                         " BOUND gap=" (rtos gap 2 1)
+                         " zoom=" (car zi) "  --  "
+                         (itoa (fix elapsed)) "ms  FAIL"))
+          (setq results (cons (list test-num "BOUND" (car zi) gap 0.0 elapsed nil 999.0) results))))
+
+      ;; Test B: HATCH
+      (setq test-num (1+ test-num)
+            t0 (getvar "MILLISECS")
+            area-raw (tz-zt-try-hatch txt-pt gap)
+            elapsed (- (getvar "MILLISECS") t0))
+      (if area-raw
+        (progn
+          (setq area-sqft (/ area-raw (* 12.0 12.0))
+                pct-err (* 100.0 (/ (abs (- area-sqft expected)) expected))
+                passed (<= pct-err tol-pct))
+          (princ (strcat "\n[TEST] #" (tz-zt-pad3 test-num)
+                         " HATCH gap=" (rtos gap 2 1)
+                         " zoom=" (car zi)
+                         "  " (rtos area-sqft 2 1) " sqft  "
+                         (itoa (fix elapsed)) "ms  "
+                         (if passed "PASS" "FAIL")))
+          (setq results (cons (list test-num "HATCH" (car zi) gap area-sqft elapsed passed pct-err) results)))
+        (progn
+          (princ (strcat "\n[TEST] #" (tz-zt-pad3 test-num)
+                         " HATCH gap=" (rtos gap 2 1)
+                         " zoom=" (car zi) "  --  "
+                         (itoa (fix elapsed)) "ms  FAIL"))
+          (setq results (cons (list test-num "HATCH" (car zi) gap 0.0 elapsed nil 999.0) results)))))
+
+    ;; Restore zoom
+    (if (cdr zi) (command "_.ZOOM" "_Previous")))
+
+  ;; Summary
+  (setq pass-count (length (vl-remove-if-not '(lambda (r) (nth 6 r)) results))
+        passing    (vl-remove-if-not '(lambda (r) (nth 6 r)) results))
+  (princ "\n[TEST] =========================================================")
+  (princ (strcat "\n[TEST] " (itoa pass-count) "/" (itoa (length results)) " passed"))
+  (if passing
+    (progn
+      (setq fastest (car (vl-sort passing '(lambda (a b) (< (nth 5 a) (nth 5 b))))))
+      (princ (strcat "\n[TEST] Fastest:  #" (tz-zt-pad3 (nth 0 fastest))
+                     " " (nth 1 fastest) " gap=" (rtos (nth 3 fastest) 2 1)
+                     " zoom=" (nth 2 fastest)
+                     "  " (rtos (nth 4 fastest) 2 1) " sqft  "
+                     (itoa (fix (nth 5 fastest))) "ms"))
+      (setq most-acc (car (vl-sort passing '(lambda (a b) (< (nth 7 a) (nth 7 b))))))
+      (princ (strcat "\n[TEST] Accurate: #" (tz-zt-pad3 (nth 0 most-acc))
+                     " " (nth 1 most-acc) " gap=" (rtos (nth 3 most-acc) 2 1)
+                     " zoom=" (nth 2 most-acc)
+                     "  " (rtos (nth 4 most-acc) 2 1) " sqft  "
+                     (rtos (nth 7 most-acc) 2 1) "% err"))))
+  (setvar "CMDECHO" ce)
+  (princ))
+
 ;; ── Load message ─────────────────────────────────────────────────────────────
 (princ "\n")
 (princ "\n+--------------------------------------------+")
