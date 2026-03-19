@@ -710,7 +710,6 @@
         n     (length verts)
         n-orig n)
 
-  (princ (strcat "\n[DBG] door-collapse start: " (itoa n) " verts"))
   (setq found-door T  skipped-arcs '())
   (while found-door
     (setq found-door nil  n (length verts))
@@ -732,7 +731,6 @@
                            (cadr (nth arc-idx verts))))
         (setq arc-key (strcat (rtos (car arc-pt) 2 1) ","
                               (rtos (cadr arc-pt) 2 1)))
-        (princ (strcat "\n[DBG]   arc at i=" (itoa arc-idx)
                        " (" (rtos (car arc-pt) 2 2)
                        "," (rtos (cadr arc-pt) 2 2) ")"
                        " bulge=" (rtos (caddr (nth arc-idx verts)) 2 4)))
@@ -745,7 +743,6 @@
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-          (princ (strcat "\n[DBG]     fwd step " (itoa i)
                          " seg " (itoa j) "->" (itoa k)
                          " len=" (rtos slen 2 2) "\""))
           (cond
@@ -773,7 +770,6 @@
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-          (princ (strcat "\n[DBG]     bwd step " (itoa i)
                          " seg " (itoa j) "->" (itoa k)
                          " len=" (rtos slen 2 2) "\""))
           (cond
@@ -792,7 +788,6 @@
              (setq i (1+ i)))
             (T (setq i 99))))
 
-        (princ (strcat "\n[DBG]   fwd-door=" (if fwd-door-j (strcat (itoa fwd-door-j) "->" (itoa fwd-door-k)) "nil")
                        "  bwd-door=" (if bwd-door-j (strcat (itoa bwd-door-j) "->" (itoa bwd-door-k)) "nil")))
 
         (cond
@@ -811,7 +806,6 @@
 
         (if best-j
           (progn
-            (princ (strcat "\n[DBG]   door seg " (itoa best-j) "->" (itoa best-k)))
 
             ;; Which end of door is closer to arc (polygon distance)?
             (setq fwd-dist (rem (+ (- best-j arc-idx) n) n)
@@ -851,7 +845,6 @@
                   (setq to-remove (cons p to-remove))
                   (setq p (rem (+ (1- p) n) n)))))
 
-            (princ (strcat "\n[DBG]   removing " (itoa (length to-remove)) " verts"
                            " (arc=" (itoa arc-idx)
                            " inside=" (itoa inside-end) ")"))
 
@@ -876,10 +869,8 @@
                 (setq new-verts (append new-verts (list (nth k verts)))))
               (setq k (1+ k)))
             (setq verts new-verts  found-door T)
-            (princ (strcat "\n[DBG]   verts after: " (itoa (length verts)))))
           ;; No door — skip this arc
           (progn
-            (princ (strcat "\n[DBG]   NO MATCH arc " (itoa arc-idx)
                            " — skipping (nearby segs):"))
             (setq j 0)
             (repeat n
@@ -892,14 +883,12 @@
                       (* 0.5 (+ (cadr (nth j verts)) (cadr (nth k verts)))))
                     d (tz-cp-seg-len arc-pt mid-pt))
               (if (< d 120.0)
-                (princ (strcat "\n[DBG]     seg " (itoa j) "->" (itoa k)
                                " len=" (rtos slen 2 2) "\""
                                " dist=" (rtos d 2 2) "\"")))
               (setq j (1+ j)))
             (setq skipped-arcs (cons arc-key skipped-arcs))
             (setq found-door T))))))
 
-  (princ (strcat "\n[DBG] door-collapse done: " (itoa (length verts)) " verts remaining"))
 
   ;; Write modified vertices back to polyline
   (if (< (length verts) n-orig)
