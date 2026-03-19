@@ -468,21 +468,20 @@
             (if (> (sslength ss-exp) 0)
               (command "_.PEDIT" (ssname ss-exp 0) "_Yes" "_Join" ss-exp "" ""))))
         (setq scan-ent (entnext scan-ent)))
-      ;; Find largest polyline
-      (setq scan-ent (entnext last-ent)  best-area 0.0)
+      ;; Collect all new entities, find largest polyline, delete the rest
+      (setq scan-ent (entnext last-ent)  best-area 0.0  all-new '())
       (while scan-ent
-        (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
-          (progn
-            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
-            (if (> cur-area best-area)
-              (setq best-area cur-area  ent scan-ent))))
+        (setq all-new (cons scan-ent all-new))
         (setq scan-ent (entnext scan-ent)))
-      ;; Delete everything else created
-      (setq scan-ent (entnext last-ent))
-      (while scan-ent
-        (if (not (equal scan-ent ent))
-          (entdel scan-ent))
-        (setq scan-ent (entnext scan-ent)))))
+      (foreach e all-new
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
+          (progn
+            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object e)))
+            (if (> cur-area best-area)
+              (setq best-area cur-area  ent e)))))
+      (foreach e all-new
+        (if (not (equal e ent))
+          (entdel e)))))
   (setvar "HPGAPTOL" old-gaptol)
   ent)
 
@@ -531,26 +530,25 @@
   ;; Simple hatch: pick internal point, press Enter to finish
   (command "_-HATCH" pt "")
 
-  ;; Find what was created
+  ;; Collect ALL new entities first (don't delete while walking)
   (if (not (equal (entlast) last-ent))
     (progn
-      (setq scan-ent (entnext last-ent)  ent nil  hatch-ent nil  best-area 0.0)
+      (setq scan-ent (entnext last-ent)  ent nil  best-area 0.0
+            all-new '())
       (while scan-ent
-        (setq etype (cdr (assoc 0 (entget scan-ent))))
-        (cond
-          ((= etype "LWPOLYLINE")
-           (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
-           (if (> cur-area best-area)
-             (progn
-               (if ent (entdel ent))
-               (setq best-area cur-area  ent scan-ent))
-             (entdel scan-ent)))
-          ((= etype "HATCH")
-           (setq hatch-ent scan-ent))
-          (T (entdel scan-ent)))
+        (setq all-new (cons scan-ent all-new))
         (setq scan-ent (entnext scan-ent)))
-      ;; Delete the hatch, keep the boundary polyline
-      (if hatch-ent (entdel hatch-ent))))
+      ;; Find the largest polyline
+      (foreach e all-new
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
+          (progn
+            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object e)))
+            (if (> cur-area best-area)
+              (setq best-area cur-area  ent e)))))
+      ;; Delete everything except the one we're keeping
+      (foreach e all-new
+        (if (not (equal e ent))
+          (entdel e)))))
 
   ;; Restore sysvars
   (setvar "HPGAPTOL" old-gaptol)
