@@ -1095,12 +1095,9 @@
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
         ;; ── Run boundary ──
-        (princ (strcat "\n[T24] Running "
-                       (if (= *TZ-BOUNDARY-MODE* 2) "HATCH" "BOUNDARY") "..."))
+        (princ "\n[T24] Running HATCH boundary...")
         (setq *tz-t0* (getvar "MILLISECS"))
-        (setq ent (if (= *TZ-BOUNDARY-MODE* 2)
-                    (tz-hatch-boundary-v2 txt-pt gap-tol)
-                    (tz-hatch-boundary txt-pt gap-tol)))
+        (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
         (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (if ent
           (princ "\n[T24] Boundary created.")
@@ -1134,18 +1131,14 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (if (= *TZ-BOUNDARY-MODE* 2)
-                              (tz-hatch-boundary-v2 txt-pt gap-tol)
-                              (tz-hatch-boundary txt-pt gap-tol))))
+                  (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol)))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (if (= *TZ-BOUNDARY-MODE* 2)
-                            (tz-hatch-boundary-v2 txt-pt gap-tol)
-                            (tz-hatch-boundary txt-pt gap-tol)))
+                (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
@@ -2764,15 +2757,7 @@
   (setq *TZ-SHAPE-MODE* nil)
   (princ))
 
-(defun c:TZ-ZONE2 ()
-  (princ "\n[T24] Mode: HATCH-BASED BOUNDARY (for rooms where BOUNDARY fails)")
-  (setq *TZ-BOUNDARY-MODE* 2)
-  (c:TZ-ZONE)
-  (setq *TZ-BOUNDARY-MODE* nil)
-  (princ))
-
 (setq *TZ-SHAPE-MODE* nil)
-(setq *TZ-BOUNDARY-MODE* nil)
 
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
@@ -2988,7 +2973,6 @@
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
 (princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
-(princ "\n|  TZ-ZONE2     - Zone via HATCH (alt method)  |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
