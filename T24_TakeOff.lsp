@@ -3094,13 +3094,15 @@
         (T (itoa n))))
 
 ;; Format and record a single test result
-(defun tz-zt-record (num label zoom-str gap area-raw elapsed expected tol-pct
-                     / area-sqft pct-err passed)
+;; area-min/area-max are outer-scope variables set by TZ-ZONETEST
+(defun tz-zt-record (num label zoom-str gap area-raw elapsed
+                     / area-sqft mid-pt pct-err passed)
   (if area-raw
     (progn
       (setq area-sqft (/ area-raw (* 12.0 12.0))
-            pct-err (* 100.0 (/ (abs (- area-sqft expected)) expected))
-            passed (<= pct-err tol-pct))
+            mid-pt    (* 0.5 (+ area-min area-max))
+            pct-err   (if (> mid-pt 0) (* 100.0 (/ (abs (- area-sqft mid-pt)) mid-pt)) 999.0)
+            passed    (and (>= area-sqft area-min) (<= area-sqft area-max)))
       (princ (strcat "\n[TEST] #" (tz-zt-pad3 num) " " label
                      " gap=" (rtos gap 2 1) " zoom=" zoom-str
                      "  " (rtos area-sqft 2 1) " sqft  "
@@ -3113,7 +3115,7 @@
                      "  --  " (itoa (fix elapsed)) "ms  FAIL"))
       (list num label zoom-str gap 0.0 elapsed nil 999.0))))
 
-(defun c:TZ-ZONETEST ( / sel txt-pt txt-str expected tol-pct
+(defun c:TZ-ZONETEST ( / sel txt-pt txt-str area-min area-max
                          ce test-num results t0 area-raw elapsed
                          gap-list zoom-list gap zi
                          v3-gaps g ent pts area-best
@@ -3127,15 +3129,14 @@
         txt-str (if (member (cdr (assoc 0 (entget (car sel)))) '("TEXT" "MTEXT"))
                   (cdr (assoc 1 (entget (car sel)))) ""))
 
-  (setq expected (getreal "\n[TEST] Expected area (sqft): "))
-  (if (null expected) (progn (setvar "CMDECHO" ce) (exit)))
-  (initget 6)
-  (setq tol-pct (getreal "\n[TEST] Tolerance % <5>: "))
-  (if (null tol-pct) (setq tol-pct 5.0))
+  (setq area-min (getreal "\n[TEST] Min acceptable area (sqft): "))
+  (if (null area-min) (progn (setvar "CMDECHO" ce) (exit)))
+  (setq area-max (getreal "\n[TEST] Max acceptable area (sqft): "))
+  (if (null area-max) (progn (setvar "CMDECHO" ce) (exit)))
 
   (princ (strcat "\n[TEST] Point: " (rtos (car txt-pt) 2 1) ", " (rtos (cadr txt-pt) 2 1)
                  "  \"" txt-str "\""))
-  (princ (strcat "\n[TEST] Expected: " (rtos expected 2 1) " sqft  Tol: " (rtos tol-pct 2 1) "%"))
+  (princ (strcat "\n[TEST] Range: " (rtos area-min 2 1) " - " (rtos area-max 2 1) " sqft"))
   (princ "\n[TEST] REGENALL...")
   (command "_.REGENALL")
 
@@ -3163,11 +3164,11 @@
       ;; BOUNDARY
       (setq test-num (1+ test-num)  t0 (getvar "MILLISECS"))
       (setq area-raw (tz-zt-try-bound txt-pt gap)  elapsed (- (getvar "MILLISECS") t0))
-      (setq results (cons (tz-zt-record test-num "BOUND" (car zi) gap area-raw elapsed expected tol-pct) results))
+      (setq results (cons (tz-zt-record test-num "BOUND" (car zi) gap area-raw elapsed) results))
       ;; HATCH
       (setq test-num (1+ test-num)  t0 (getvar "MILLISECS"))
       (setq area-raw (tz-zt-try-hatch txt-pt gap)  elapsed (- (getvar "MILLISECS") t0))
-      (setq results (cons (tz-zt-record test-num "HATCH" (car zi) gap area-raw elapsed expected tol-pct) results)))
+      (setq results (cons (tz-zt-record test-num "HATCH" (car zi) gap area-raw elapsed) results)))
     (if (cdr zi) (command "_.ZOOM" "_Previous")))
 
   ;; ── Phase 2: V3 variants — progressive gap + containment (50 tests) ──
@@ -3205,7 +3206,7 @@
       (setq elapsed (- (getvar "MILLISECS") t0))
       (setq results (cons (tz-zt-record test-num
                             (strcat "V3-" (car gseq)) (car zi) 0.0
-                            area-best elapsed expected tol-pct) results)))
+                            area-best elapsed) results)))
     (if (cdr zi) (command "_.ZOOM" "_Previous")))
 
   ;; ── Summary ──
