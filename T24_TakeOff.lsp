@@ -510,6 +510,72 @@
       (command "_.ZOOM" "_Previous")))
   ent)
 
+;; ── Hatch-based boundary detection ──────────────────────────────────────────
+;; Creates a temporary HATCH, extracts its associative boundary polyline,
+;; then deletes the hatch. Works where _-BOUNDARY fails (XREF geometry).
+(defun tz-try-hatch-boundary (pt gap-tol / old-gaptol old-hpbound last-ent
+                                           hatch-ent scan-ent ent etype
+                                           best-area cur-area assoc-ents
+                                           boundary-ent)
+  (setq old-gaptol  (getvar "HPGAPTOL")
+        old-hpbound (getvar "HPBOUNDRETAIN"))
+  (setvar "HPGAPTOL" gap-tol)
+  (setvar "HPBOUNDRETAIN" 1)  ;; keep boundary polyline
+  (setq last-ent (entlast))
+
+  ;; Create hatch: solid fill, pick internal point, finish
+  (command "_-HATCH" "_Properties" "_Solid" "" "_Advanced"
+           "_Boundary" "_Polyline" "" pt "")
+
+  ;; Find what was created
+  (if (not (equal (entlast) last-ent))
+    (progn
+      ;; Walk new entities to find polylines and hatches
+      (setq scan-ent (entnext last-ent)  ent nil  hatch-ent nil  best-area 0.0)
+      (while scan-ent
+        (setq etype (cdr (assoc 0 (entget scan-ent))))
+        (cond
+          ((= etype "LWPOLYLINE")
+           (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
+           (if (> cur-area best-area)
+             (progn
+               (if ent (entdel ent))  ;; delete previous smaller polyline
+               (setq best-area cur-area  ent scan-ent))
+             (entdel scan-ent)))
+          ((= etype "HATCH")
+           (setq hatch-ent scan-ent))
+          (T
+           (entdel scan-ent)))  ;; delete anything else
+        (setq scan-ent (entnext scan-ent)))
+      ;; Delete the hatch, keep the boundary polyline
+      (if hatch-ent (entdel hatch-ent))))
+
+  (setvar "HPGAPTOL" old-gaptol)
+  (setvar "HPBOUNDRETAIN" old-hpbound)
+  ent)
+
+;; Hatch-based version of tz-hatch-boundary
+(defun tz-hatch-boundary-v2 (pt gap-tol / ent local-rad)
+  (command "_.REGENALL")
+  ;; Try 1: current zoom
+  (setq ent (tz-try-hatch-boundary pt gap-tol))
+  ;; Try 2: local zoom
+  (if (null ent)
+    (progn
+      (setq local-rad 1200.0)
+      (command "_.ZOOM" "_Window"
+        (list (- (car pt) local-rad) (- (cadr pt) local-rad))
+        (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
+      (setq ent (tz-try-hatch-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ;; Try 3: zoom extents
+  (if (null ent)
+    (progn
+      (command "_.ZOOM" "_Extents")
+      (setq ent (tz-try-hatch-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ent)
+
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
 
 (defun tz-pline-verts (obj / coords nv i verts)
@@ -1024,9 +1090,12 @@
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
         ;; ── Run boundary ──
-        (princ "\n[T24] Running BOUNDARY...")
+        (princ (strcat "\n[T24] Running "
+                       (if (= *TZ-BOUNDARY-MODE* 2) "HATCH" "BOUNDARY") "..."))
         (setq *tz-t0* (getvar "MILLISECS"))
-        (setq ent (tz-hatch-boundary txt-pt gap-tol))
+        (setq ent (if (= *TZ-BOUNDARY-MODE* 2)
+                    (tz-hatch-boundary-v2 txt-pt gap-tol)
+                    (tz-hatch-boundary txt-pt gap-tol)))
         (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (if ent
           (princ "\n[T24] Boundary created.")
@@ -1060,14 +1129,18 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (tz-hatch-boundary txt-pt gap-tol)))
+                  (setq ent (if (= *TZ-BOUNDARY-MODE* 2)
+                              (tz-hatch-boundary-v2 txt-pt gap-tol)
+                              (tz-hatch-boundary txt-pt gap-tol))))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (tz-hatch-boundary txt-pt gap-tol))
+                (setq ent (if (= *TZ-BOUNDARY-MODE* 2)
+                            (tz-hatch-boundary-v2 txt-pt gap-tol)
+                            (tz-hatch-boundary txt-pt gap-tol)))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
@@ -2687,20 +2760,14 @@
   (princ))
 
 (defun c:TZ-ZONE2 ()
-  (princ "\n[T24] Mode: CONCAVITY FILTER (fills notches < 50 sqft)")
-  (setq *TZ-SHAPE-MODE* 2)
+  (princ "\n[T24] Mode: HATCH-BASED BOUNDARY (for rooms where BOUNDARY fails)")
+  (setq *TZ-BOUNDARY-MODE* 2)
   (c:TZ-ZONE)
-  (setq *TZ-SHAPE-MODE* nil)
-  (princ))
-
-(defun c:TZ-ZONE3 ()
-  (princ "\n[T24] Mode: BOUNDING BOX")
-  (setq *TZ-SHAPE-MODE* 3)
-  (c:TZ-ZONE)
-  (setq *TZ-SHAPE-MODE* nil)
+  (setq *TZ-BOUNDARY-MODE* nil)
   (princ))
 
 (setq *TZ-SHAPE-MODE* nil)
+(setq *TZ-BOUNDARY-MODE* nil)
 
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
@@ -2916,8 +2983,7 @@
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
 (princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
-(princ "\n|  TZ-ZONE2     - Zone + concavity filter     |")
-(princ "\n|  TZ-ZONE3     - Zone + bounding box         |")
+(princ "\n|  TZ-ZONE2     - Zone via HATCH (alt method)  |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
