@@ -731,9 +731,6 @@
                            (cadr (nth arc-idx verts))))
         (setq arc-key (strcat (rtos (car arc-pt) 2 1) ","
                               (rtos (cadr arc-pt) 2 1)))
-                       " (" (rtos (car arc-pt) 2 2)
-                       "," (rtos (cadr arc-pt) 2 2) ")"
-                       " bulge=" (rtos (caddr (nth arc-idx verts)) 2 4)))
 
         ;; ── Walk FORWARD from arc through tiny segs (< 10") ──
         (setq fwd-door-j nil  fwd-door-k nil  i 1)
@@ -743,8 +740,6 @@
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-                         " seg " (itoa j) "->" (itoa k)
-                         " len=" (rtos slen 2 2) "\""))
           (cond
             ((and (>= slen 30.0) (<= slen 44.0))
              (setq fwd-door-j j  fwd-door-k k))
@@ -770,8 +765,6 @@
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-                         " seg " (itoa j) "->" (itoa k)
-                         " len=" (rtos slen 2 2) "\""))
           (cond
             ((and (>= slen 30.0) (<= slen 44.0))
              (setq bwd-door-j j  bwd-door-k k))
@@ -787,8 +780,6 @@
             ((< slen 10.0)
              (setq i (1+ i)))
             (T (setq i 99))))
-
-                       "  bwd-door=" (if bwd-door-j (strcat (itoa bwd-door-j) "->" (itoa bwd-door-k)) "nil")))
 
         (cond
           ;; Only one direction found a door
@@ -806,7 +797,6 @@
 
         (if best-j
           (progn
-
             ;; Which end of door is closer to arc (polygon distance)?
             (setq fwd-dist (rem (+ (- best-j arc-idx) n) n)
                   bwd-dist (rem (+ (- arc-idx best-j) n) n))
@@ -845,9 +835,6 @@
                   (setq to-remove (cons p to-remove))
                   (setq p (rem (+ (1- p) n) n)))))
 
-                           " (arc=" (itoa arc-idx)
-                           " inside=" (itoa inside-end) ")"))
-
             ;; Draw debug circles at each removed vertex
             (setq dbg-num 1)
             (foreach ri to-remove
@@ -868,27 +855,11 @@
               (if (not (member k to-remove))
                 (setq new-verts (append new-verts (list (nth k verts)))))
               (setq k (1+ k)))
-            (setq verts new-verts  found-door T)
-          ;; No door — skip this arc
+            (setq verts new-verts  found-door T))
+          ;; No door -- skip this arc
           (progn
-                           " — skipping (nearby segs):"))
-            (setq j 0)
-            (repeat n
-              (setq k (rem (1+ j) n)
-                    slen (tz-cp-seg-len
-                           (list (car (nth j verts)) (cadr (nth j verts)))
-                           (list (car (nth k verts)) (cadr (nth k verts))))
-                    mid-pt (list
-                      (* 0.5 (+ (car (nth j verts)) (car (nth k verts))))
-                      (* 0.5 (+ (cadr (nth j verts)) (cadr (nth k verts)))))
-                    d (tz-cp-seg-len arc-pt mid-pt))
-              (if (< d 120.0)
-                               " len=" (rtos slen 2 2) "\""
-                               " dist=" (rtos d 2 2) "\"")))
-              (setq j (1+ j)))
             (setq skipped-arcs (cons arc-key skipped-arcs))
             (setq found-door T))))))
-
 
   ;; Write modified vertices back to polyline
   (if (< (length verts) n-orig)
