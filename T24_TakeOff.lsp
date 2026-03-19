@@ -487,32 +487,27 @@
   ent)
 
 ;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
-;; *TZ-BOUNDARY-MODE* 2 = fast (zoom extents only, no per-room REGEN)
-;; Default = REGENALL + progressive (current -> local -> extents)
+;; Tries at current zoom first, then zooms to a local window around the point,
+;; then falls back to zoom extents. Runs REGENALL once before starting.
 (defun tz-hatch-boundary (pt gap-tol / ent local-rad)
-  (if (= *TZ-BOUNDARY-MODE* 2)
-    ;; Fast mode: session REGENALL already done, just zoom extents + boundary
+  (command "_.REGENALL")
+  ;; Try 1: current zoom (fastest)
+  (setq ent (tz-try-boundary pt gap-tol))
+  ;; Try 2: zoom to local area around the pick point (~100' radius)
+  (if (null ent)
+    (progn
+      (setq local-rad 1200.0)  ; 100 feet in inches
+      (command "_.ZOOM" "_Window"
+        (list (- (car pt) local-rad) (- (cadr pt) local-rad))
+        (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
+      (setq ent (tz-try-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ;; Try 3: zoom extents (slowest, last resort)
+  (if (null ent)
     (progn
       (command "_.ZOOM" "_Extents")
       (setq ent (tz-try-boundary pt gap-tol))
-      (command "_.ZOOM" "_Previous"))
-    ;; Default: REGENALL per room + progressive zoom
-    (progn
-      (command "_.REGENALL")
-      (setq ent (tz-try-boundary pt gap-tol))
-      (if (null ent)
-        (progn
-          (setq local-rad 1200.0)
-          (command "_.ZOOM" "_Window"
-            (list (- (car pt) local-rad) (- (cadr pt) local-rad))
-            (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
-          (setq ent (tz-try-boundary pt gap-tol))
-          (command "_.ZOOM" "_Previous")))
-      (if (null ent)
-        (progn
-          (command "_.ZOOM" "_Extents")
-          (setq ent (tz-try-boundary pt gap-tol))
-          (command "_.ZOOM" "_Previous")))))
+      (command "_.ZOOM" "_Previous")))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -916,8 +911,6 @@
     (princ))
 
   (tz-setup)
-  ;; REGENALL once per session (not per room) — geometry doesn't change between rooms
-  (if (null *TZ-REGEN-DONE*) (progn (command "_.REGENALL") (setq *TZ-REGEN-DONE* T)))
   (setq ce nil  cd nil  cl nil  froze nil  txt-lyrs-frozen nil
         hpg-save (getvar "HPGAPTOL"))
 
@@ -2683,7 +2676,9 @@
                      " -> " (itoa n-after) " vertices")))
     (princ (strcat "\n[T24] " label ": no change"))))
 
-;; ── TZ-ZONE1 — Convex hull variant ──────────────────────────────────────────
+;; ── TZ-ZONE1 / TZ-ZONE2 / TZ-ZONE3 ────────────────────────────────────────
+;; Thin wrappers: set shape mode, call TZ-ZONE, clear mode.
+
 (defun c:TZ-ZONE1 ()
   (princ "\n[T24] Mode: CONVEX HULL")
   (setq *TZ-SHAPE-MODE* 1)
@@ -2692,14 +2687,20 @@
   (princ))
 
 (defun c:TZ-ZONE2 ()
-  (princ "\n[T24] Mode: FAST (session REGEN + zoom extents only)")
-  (setq *TZ-BOUNDARY-MODE* 2)
+  (princ "\n[T24] Mode: CONCAVITY FILTER (fills notches < 50 sqft)")
+  (setq *TZ-SHAPE-MODE* 2)
   (c:TZ-ZONE)
-  (setq *TZ-BOUNDARY-MODE* nil)
+  (setq *TZ-SHAPE-MODE* nil)
+  (princ))
+
+(defun c:TZ-ZONE3 ()
+  (princ "\n[T24] Mode: BOUNDING BOX")
+  (setq *TZ-SHAPE-MODE* 3)
+  (c:TZ-ZONE)
+  (setq *TZ-SHAPE-MODE* nil)
   (princ))
 
 (setq *TZ-SHAPE-MODE* nil)
-(setq *TZ-BOUNDARY-MODE* nil)
 
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
@@ -2915,6 +2916,8 @@
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
 (princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
+(princ "\n|  TZ-ZONE2     - Zone + concavity filter     |")
+(princ "\n|  TZ-ZONE3     - Zone + bounding box         |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
