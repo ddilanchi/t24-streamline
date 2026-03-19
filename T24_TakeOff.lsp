@@ -487,11 +487,27 @@
   ent)
 
 ;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
-;; Zoom extents, try boundary, zoom back. Every room gets a fresh zoom.
-(defun tz-hatch-boundary (pt gap-tol / ent)
-  (command "_.ZOOM" "_Extents")
+;; Tries at current zoom first, then zooms to a local window around the point,
+;; then falls back to zoom extents. Runs REGENALL once before starting.
+(defun tz-hatch-boundary (pt gap-tol / ent local-rad)
+  (command "_.REGENALL")
+  ;; Try 1: current zoom (fastest)
   (setq ent (tz-try-boundary pt gap-tol))
-  (command "_.ZOOM" "_Previous")
+  ;; Try 2: zoom to local area around the pick point (~100' radius)
+  (if (null ent)
+    (progn
+      (setq local-rad 1200.0)  ; 100 feet in inches
+      (command "_.ZOOM" "_Window"
+        (list (- (car pt) local-rad) (- (cadr pt) local-rad))
+        (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
+      (setq ent (tz-try-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ;; Try 3: zoom extents (slowest, last resort)
+  (if (null ent)
+    (progn
+      (command "_.ZOOM" "_Extents")
+      (setq ent (tz-try-boundary pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
