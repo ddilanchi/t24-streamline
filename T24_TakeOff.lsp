@@ -561,7 +561,6 @@
 
 ;; Hatch-based version of tz-hatch-boundary
 (defun tz-hatch-boundary-v2 (pt gap-tol / ent local-rad)
-  (command "_.REGENALL")
   ;; Try 1: current zoom
   (setq ent (tz-try-hatch-boundary pt gap-tol))
   ;; Try 2: local zoom
