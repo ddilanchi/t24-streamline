@@ -1052,9 +1052,12 @@
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
         ;; ── Run boundary ──
-        (princ "\n[T24] Running HATCH boundary...")
+        (princ (strcat "\n[T24] Running "
+          (if (= *TZ-BOUNDARY-MODE* 3) "ROBUST" "HATCH") " boundary..."))
         (setq *tz-t0* (getvar "MILLISECS"))
-        (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
+        (setq ent (if (= *TZ-BOUNDARY-MODE* 3)
+                    (tz-hatch-boundary-v3 txt-pt gap-tol)
+                    (tz-hatch-boundary-v2 txt-pt gap-tol)))
         (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (if ent
           (princ "\n[T24] Boundary created.")
@@ -1088,14 +1091,18 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol)))
+                  (setq ent (if (= *TZ-BOUNDARY-MODE* 3)
+                              (tz-hatch-boundary-v3 txt-pt gap-tol)
+                              (tz-hatch-boundary-v2 txt-pt gap-tol))))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
+                (setq ent (if (= *TZ-BOUNDARY-MODE* 3)
+                            (tz-hatch-boundary-v3 txt-pt gap-tol)
+                            (tz-hatch-boundary-v2 txt-pt gap-tol)))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
@@ -2716,6 +2723,80 @@
 
 (setq *TZ-SHAPE-MODE* nil)
 
+;; ── TZ-ZONE2 — Robust hatch boundary with progressive gap + containment ─────
+;; Strategy: zoom extents once, try HATCH at progressively larger gap tolerances,
+;; reject any result that doesn't contain the click point (catches escapes).
+;; No REGENALL needed. Fastest correct result wins.
+
+;; Run HATCH at a single gap tolerance, return largest polyline or nil.
+;; Deletes all other created entities. Uses collect-then-delete pattern.
+(defun tz-try-hatch-single (pt gap / old-g old-hpb old-hpn old-hpa
+                                      last-ent scan-ent ent best cur
+                                      all-new e etype)
+  (setq old-g   (getvar "HPGAPTOL")
+        old-hpb (getvar "HPBOUNDRETAIN")
+        old-hpn (getvar "HPNAME")
+        old-hpa (getvar "HPASSOC"))
+  (setvar "HPGAPTOL" gap)
+  (setvar "HPBOUNDRETAIN" 1)
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
+  (setq last-ent (entlast)  ent nil  best 0.0)
+  (command "_-HATCH" pt "")
+  (if (not (equal (entlast) last-ent))
+    (progn
+      ;; Collect all new entities
+      (setq scan-ent (entnext last-ent)  all-new '())
+      (while scan-ent
+        (setq all-new (cons scan-ent all-new))
+        (setq scan-ent (entnext scan-ent)))
+      ;; Find largest polyline
+      (foreach e all-new
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
+          (progn
+            (setq cur (vlax-curve-getarea (vlax-ename->vla-object e)))
+            (if (> cur best) (setq best cur  ent e)))))
+      ;; Delete everything except the keeper
+      (foreach e all-new
+        (if (not (equal e ent)) (entdel e)))))
+  (setvar "HPGAPTOL" old-g)
+  (setvar "HPBOUNDRETAIN" old-hpb)
+  (setvar "HPNAME" old-hpn)
+  (setvar "HPASSOC" old-hpa)
+  ent)
+
+;; Smart boundary: zoom extents, try progressive gap tolerances,
+;; validate result contains click point. Returns polyline or nil.
+(defun tz-hatch-boundary-v3 (pt gap-tol / ent pts gap-list g)
+  (command "_.ZOOM" "_Extents")
+  (setq gap-list '(0.0 0.5 1.0 2.0 4.0)
+        ent nil)
+  (foreach g gap-list
+    (if (null ent)
+      (progn
+        (setq ent (tz-try-hatch-single pt g))
+        (if ent
+          (progn
+            ;; Containment check: does the boundary contain the click point?
+            (setq pts (tz-get-pts ent))
+            (if (not (tz-pip (list (car pt) (cadr pt)) pts))
+              (progn
+                ;; Escaped — boundary doesn't contain click point. Delete and try next gap.
+                (princ (strcat "\n[T24] Gap " (rtos g 2 1) "\" escaped, retrying..."))
+                (entdel ent)
+                (setq ent nil))))))))
+  (command "_.ZOOM" "_Previous")
+  ent)
+
+(defun c:TZ-ZONE2 ()
+  (princ "\n[T24] Mode: ROBUST (progressive gap + containment check)")
+  (setq *TZ-BOUNDARY-MODE* 3)
+  (c:TZ-ZONE)
+  (setq *TZ-BOUNDARY-MODE* nil)
+  (princ))
+
+(setq *TZ-BOUNDARY-MODE* nil)
+
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
 ;; Z-elevations, blocks/proxies, and tries BOUNDARY at multiple gap tolerances.
@@ -3133,6 +3214,7 @@
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
 (princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
+(princ "\n|  TZ-ZONE2     - Robust (no-escape boundary) |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
