@@ -487,27 +487,48 @@
   ent)
 
 ;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
-;; Tries at current zoom first, then zooms to a local window around the point,
-;; then falls back to zoom extents. Runs REGENALL once before starting.
-(defun tz-hatch-boundary (pt gap-tol / ent local-rad)
-  (command "_.REGENALL")
-  ;; Try 1: current zoom (fastest)
-  (setq ent (tz-try-boundary pt gap-tol))
-  ;; Try 2: zoom to local area around the pick point (~100' radius)
-  (if (null ent)
-    (progn
-      (setq local-rad 1200.0)  ; 100 feet in inches
-      (command "_.ZOOM" "_Window"
-        (list (- (car pt) local-rad) (- (cadr pt) local-rad))
-        (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
-      (setq ent (tz-try-boundary pt gap-tol))
-      (command "_.ZOOM" "_Previous")))
-  ;; Try 3: zoom extents (slowest, last resort)
-  (if (null ent)
-    (progn
-      (command "_.ZOOM" "_Extents")
-      (setq ent (tz-try-boundary pt gap-tol))
-      (command "_.ZOOM" "_Previous")))
+;; *TZ-BOUNDARY-MODE* controls strategy:
+;;   nil/0 = default (REGENALL + progressive: current -> local -> extents)
+;;   4 = REGENALL + zoom extents only (skip tries 1&2)
+;;   5 = zoom extents only, no REGENALL
+;;   6 = no zoom change, no REGENALL (raw BOUNDARY at current view)
+(defun tz-hatch-boundary (pt gap-tol / ent local-rad mode)
+  (setq mode (if *TZ-BOUNDARY-MODE* *TZ-BOUNDARY-MODE* 0))
+  (cond
+    ;; Mode 4: REGENALL + zoom extents only
+    ((= mode 4)
+     (command "_.REGENALL")
+     (command "_.ZOOM" "_Extents")
+     (setq ent (tz-try-boundary pt gap-tol))
+     (command "_.ZOOM" "_Previous"))
+
+    ;; Mode 5: zoom extents only, no REGENALL
+    ((= mode 5)
+     (command "_.ZOOM" "_Extents")
+     (setq ent (tz-try-boundary pt gap-tol))
+     (command "_.ZOOM" "_Previous"))
+
+    ;; Mode 6: no zoom, no REGENALL — raw boundary at current view
+    ((= mode 6)
+     (setq ent (tz-try-boundary pt gap-tol)))
+
+    ;; Default (mode 0): REGENALL + progressive
+    (T
+     (command "_.REGENALL")
+     (setq ent (tz-try-boundary pt gap-tol))
+     (if (null ent)
+       (progn
+         (setq local-rad 1200.0)
+         (command "_.ZOOM" "_Window"
+           (list (- (car pt) local-rad) (- (cadr pt) local-rad))
+           (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
+         (setq ent (tz-try-boundary pt gap-tol))
+         (command "_.ZOOM" "_Previous")))
+     (if (null ent)
+       (progn
+         (command "_.ZOOM" "_Extents")
+         (setq ent (tz-try-boundary pt gap-tol))
+         (command "_.ZOOM" "_Previous")))))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -2701,6 +2722,30 @@
   (princ))
 
 (setq *TZ-SHAPE-MODE* nil)
+(setq *TZ-BOUNDARY-MODE* nil)
+
+;; ── TZ-ZONE4/5/6 — Boundary strategy variants ──────────────────────────────
+
+(defun c:TZ-ZONE4 ()
+  (princ "\n[T24] Mode: REGENALL + ZOOM EXTENTS (skip progressive)")
+  (setq *TZ-BOUNDARY-MODE* 4)
+  (c:TZ-ZONE)
+  (setq *TZ-BOUNDARY-MODE* nil)
+  (princ))
+
+(defun c:TZ-ZONE5 ()
+  (princ "\n[T24] Mode: ZOOM EXTENTS only (no REGENALL)")
+  (setq *TZ-BOUNDARY-MODE* 5)
+  (c:TZ-ZONE)
+  (setq *TZ-BOUNDARY-MODE* nil)
+  (princ))
+
+(defun c:TZ-ZONE6 ()
+  (princ "\n[T24] Mode: RAW BOUNDARY (no zoom, no REGENALL)")
+  (setq *TZ-BOUNDARY-MODE* 6)
+  (c:TZ-ZONE)
+  (setq *TZ-BOUNDARY-MODE* nil)
+  (princ))
 
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
@@ -2918,6 +2963,9 @@
 (princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
 (princ "\n|  TZ-ZONE2     - Zone + concavity filter     |")
 (princ "\n|  TZ-ZONE3     - Zone + bounding box         |")
+(princ "\n|  TZ-ZONE4     - REGEN + extents (no retry)  |")
+(princ "\n|  TZ-ZONE5     - Extents only (no REGEN)     |")
+(princ "\n|  TZ-ZONE6     - Raw (no zoom, no REGEN)     |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
