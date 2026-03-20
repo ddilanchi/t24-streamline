@@ -109,7 +109,7 @@
 (defun tz-zone-get-pts (ent)
   (if (= (cdr (assoc 0 (entget ent))) "HATCH")
     (tz-hatch-get-pts ent)
-    (tz-zone-get-pts ent)))
+    (tz-get-pts ent)))
 
 ;; Average-of-vertices centroid (good enough for room shapes)
 (defun tz-centroid (pts / n sx sy)
@@ -463,14 +463,23 @@
       (entlast))))
 
 ;; Create hatch inside a closed polyline, delete the polyline, return hatch.
-(defun tz-hatch-inside-pline (pline-ent / pts centroid hatch-ent)
-  (setq pts (tz-get-pts pline-ent)
-        centroid (tz-centroid pts))
-  ;; Hatch at centroid of the polyline
-  (setq hatch-ent (tz-create-zone-hatch (list (car centroid) (cadr centroid)) 1.0))
-  ;; Delete the polyline
-  (if hatch-ent (entdel pline-ent))
-  (if hatch-ent hatch-ent nil))
+;; Create hatch directly from a closed polyline via VLA (no _-HATCH command).
+;; Keeps the polyline as the boundary loop. Returns hatch ename or nil.
+(defun tz-hatch-inside-pline (pline-ent / mspace pline-obj hatch-obj loop-arr hatch-ent)
+  (setq mspace    (vla-get-ModelSpace (vla-get-ActiveDocument (vlax-get-acad-object)))
+        pline-obj (vlax-ename->vla-object pline-ent))
+  (setq hatch-obj (vla-AddHatch mspace acHatchPatternTypePreDefined "SOLID" :vlax-true acHatchObject))
+  (setq loop-arr (vlax-make-safearray vlax-vbObject '(0 . 0)))
+  (vlax-safearray-put-element loop-arr 0 pline-obj)
+  (vla-AppendOuterLoop hatch-obj loop-arr)
+  (vla-Evaluate hatch-obj)
+  (vla-put-Layer hatch-obj *TZ-LYR-ZONE*)
+  (vla-put-Transparency hatch-obj 50)
+  (setq hatch-ent (vlax-vla-object->ename hatch-obj))
+  (vlax-release-object hatch-obj)
+  ;; Delete the polyline (hatch is independent, non-associative)
+  (entdel pline-ent)
+  hatch-ent)
 
 ;; ── Layer freeze/thaw helpers ────────────────────────────────────────────────
 ;; Use _.-LAYER command (command-line version, NOT dialog _.LAYER).
@@ -560,47 +569,63 @@
   ent)
 
 ;; ── Hatch-based boundary detection ──────────────────────────────────────────
-;; Creates a temporary HATCH, extracts its associative boundary polyline,
-;; Create a hatch at pt using standard hatch tool.
-;; Gradient radial fill, 50% transparency, on T24-ZONE layer.
-;; Room must be visible on screen. Returns hatch entity or nil.
+;; Create zone hatch at pt. Uses _-HATCH to detect boundary (gets a polyline),
+;; then creates a clean SOLID hatch via VLA from that polyline, deletes originals.
+;; Returns hatch ename or nil. Room must be visible on screen.
 (defun tz-create-zone-hatch (pt gap-tol / old-gaptol old-hpbound last-ent
-                                          scan-ent all-new e ent obj)
+                                          scan-ent all-new e pline-ent hatch-ent
+                                          best-area cur-area
+                                          mspace hatch-obj loop-arr pline-obj)
   (setq old-gaptol  (getvar "HPGAPTOL")
         old-hpbound (getvar "HPBOUNDRETAIN"))
   (setvar "HPGAPTOL" gap-tol)
   (setvar "HPBOUNDRETAIN" 1)
   (setvar "HPNAME" "SOLID")
   (setvar "HPASSOC" 0)
-  (setq last-ent (entlast)  ent nil)
+  (setq last-ent (entlast)  pline-ent nil  hatch-ent nil)
 
-  ;; Command-line hatch (HPBOUNDRETAIN=1 required or it hangs)
+  ;; Step 1: _-HATCH to detect boundary (creates hatch + polyline)
   (command "_-HATCH" pt "")
 
-  ;; Collect new entities, find the hatch
+  ;; Step 2: Collect new entities, find the largest polyline
   (if (not (equal (entlast) last-ent))
     (progn
-      (setq scan-ent (entnext last-ent)  all-new '())
+      (setq scan-ent (entnext last-ent)  all-new '()  best-area 0.0)
       (while scan-ent
         (setq all-new (cons scan-ent all-new))
         (setq scan-ent (entnext scan-ent)))
-      ;; Find the hatch
       (foreach e all-new
-        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
-          (setq ent e)))
-      ;; Set up the hatch: layer, transparency
-      (if ent
-        (progn
-          (setq obj (vlax-ename->vla-object ent))
-          (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
-          (vla-put-Transparency obj 50)))
-      ;; Delete everything except the hatch
-      (foreach e all-new
-        (if (not (equal e ent)) (entdel e)))))
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
+          (progn
+            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object e)))
+            (if (> cur-area best-area)
+              (setq best-area cur-area  pline-ent e)))))))
+
+  ;; Step 3: Create clean hatch via VLA from the polyline
+  (if pline-ent
+    (progn
+      (setq mspace   (vla-get-ModelSpace (vla-get-ActiveDocument (vlax-get-acad-object)))
+            pline-obj (vlax-ename->vla-object pline-ent))
+      ;; Create hatch: solid fill, non-associative
+      (setq hatch-obj (vla-AddHatch mspace acHatchPatternTypePreDefined "SOLID" :vlax-true acHatchObject))
+      ;; Build outer loop array with the polyline
+      (setq loop-arr (vlax-make-safearray vlax-vbObject '(0 . 0)))
+      (vlax-safearray-put-element loop-arr 0 pline-obj)
+      (vla-AppendOuterLoop hatch-obj loop-arr)
+      (vla-Evaluate hatch-obj)
+      ;; Set layer and transparency
+      (vla-put-Layer hatch-obj *TZ-LYR-ZONE*)
+      (vla-put-Transparency hatch-obj 50)
+      ;; Get ename for return
+      (setq hatch-ent (vlax-vla-object->ename hatch-obj))
+      (vlax-release-object hatch-obj)))
+
+  ;; Step 4: Delete ALL entities from _-HATCH (both the temp hatch and polylines)
+  (foreach e all-new (entdel e))
 
   (setvar "HPGAPTOL" old-gaptol)
   (setvar "HPBOUNDRETAIN" old-hpbound)
-  ent)
+  hatch-ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
 
@@ -998,6 +1023,8 @@
     (if froze (tz-thaw-layers froze))
     (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
     (if hpg-save (setvar "HPGAPTOL" hpg-save) (setvar "HPGAPTOL" 0.0))
+    (if hpb-save (setvar "HPBOUNDRETAIN" hpb-save))
+    (if hpn-save (setvar "HPNAME" hpn-save))
     (*pop-error-using-command*)
     (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
       (princ (strcat "\n[T24] Error: " msg)))
@@ -1005,7 +1032,9 @@
 
   (tz-setup)
   (setq ce nil  cd nil  cl nil  froze nil  txt-lyrs-frozen nil
-        hpg-save (getvar "HPGAPTOL"))
+        hpg-save (getvar "HPGAPTOL")
+        hpb-save nil
+        hpn-save nil)
 
   ;; ── Session setup dialog ────────────────────────────────────────────────────
   ;; Globals persist between runs; dialog pre-fills with previous values
@@ -1112,46 +1141,27 @@
             (if (not (member txt-lyr txt-lyrs-frozen))
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
-        ;; ── Launch HATCH tool, wait for user to finish ──
+        ;; ── Launch BOUNDARY tool magically ──
         (setq last-ent (entlast))
         (setvar "CLAYER" *TZ-LYR-ZONE*)
-        (princ "\n[T24] >>> Click inside the room to hatch it. <<<")
+        (princ "\n[T24] >>> Generating boundary automatically... <<<")
+        
+        ;; Use the robust built-in boundary function!
+        (setq ent (tz-hatch-boundary txt-pt gap-tol))
 
-        ;; Launch HATCH (same as typing HATCH at command line)
-        ;; command-s suspends LISP until user finishes (AutoCAD 2015+)
-        (command-s "HATCH")
+        (setvar "CMDECHO" 0)
+        (setvar "CMDDIA" 0)
 
-        ;; Thaw text layer
+        ;; Thaw text layer immediately
         (if txt-lyr (tz-thaw-layer txt-lyr))
-
-        ;; ── Find the new hatch entity ──
-        (setq ent nil)
-        (if (not (equal (entlast) last-ent))
-          (progn
-            (setq scan-ent (entnext last-ent)  all-new '())
-            (while scan-ent
-              (setq all-new (cons scan-ent all-new))
-              (setq scan-ent (entnext scan-ent)))
-            ;; Find the hatch
-            (foreach e all-new
-              (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
-                (setq ent e)))
-            ;; Set up: layer, transparency
-            (if ent
-              (progn
-                (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
-                (vla-put-Transparency (vlax-ename->vla-object ent) 50)))
-            ;; Delete any stray entities (polylines from HPBOUNDRETAIN)
-            (foreach e all-new
-              (if (not (equal e ent)) (entdel e)))))
 
         (setvar "CMDDIA"  cd)
         (setvar "CMDECHO" ce)
         (setvar "CLAYER"  cl)
 
         (if ent
-          (princ (strcat "\n[T24] Hatch found (" (rtos (tz-zone-area-sqft ent) 2 1) " sqft)"))
-          (princ "\n[T24] No hatch created, skipping this zone."))
+          (princ (strcat "\n[T24] Boundary found (" (rtos (tz-zone-area-sqft ent) 2 1) " sqft)"))
+          (princ "\n[T24] No boundary created, skipping this zone."))
 
         (if ent
           (progn
