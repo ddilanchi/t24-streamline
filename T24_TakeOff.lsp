@@ -2752,26 +2752,7 @@
   (while (setq dest-pt (getpoint "\n[ZCOPY] Destination point (Enter to finish): "))
     (command "_.UNDO" "_Begin")
 
-    ;; Compute offset
-    (setq dx (- (car dest-pt) (car base-pt))
-          dy (- (cadr dest-pt) (cadr base-pt)))
-
-    ;; Create offset copy of polyline
-    (setq new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts))
-    (setvar "CLAYER" *TZ-LYR-ZONE*)
-    (setq elist
-      (list '(0 . "LWPOLYLINE")
-            '(100 . "AcDbEntity")
-            (cons 8 *TZ-LYR-ZONE*)
-            '(100 . "AcDbPolyline")
-            (cons 90 (length new-pts))
-            '(70 . 1)))
-    (foreach p new-pts
-      (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
-    (entmake elist)
-    (setq new-ent (entlast))
-
-    ;; Scan for nearby text at destination to auto-name
+    ;; Scan for nearby text BEFORE creating polyline (so nentselp hits text, not our zone)
     (setq nearby-texts '()
           zone-name nil)
     (tz-scan-nearby-text dest-pt nil "" 36.0)
@@ -2791,6 +2772,25 @@
         (if (= zone-name "") (setq zone-name "UNNAMED"))))
 
     (if (> (strlen zone-name) 30) (setq zone-name (substr zone-name 1 30)))
+
+    ;; Compute offset
+    (setq dx (- (car dest-pt) (car base-pt))
+          dy (- (cadr dest-pt) (cadr base-pt)))
+
+    ;; Create offset copy of polyline
+    (setq new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts))
+    (setvar "CLAYER" *TZ-LYR-ZONE*)
+    (setq elist
+      (list '(0 . "LWPOLYLINE")
+            '(100 . "AcDbEntity")
+            (cons 8 *TZ-LYR-ZONE*)
+            '(100 . "AcDbPolyline")
+            (cons 90 (length new-pts))
+            '(70 . 1)))
+    (foreach p new-pts
+      (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
+    (entmake elist)
+    (setq new-ent (entlast))
 
     ;; Compute area and centroid
     (setq area-ft  (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
