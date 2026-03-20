@@ -1,0 +1,244 @@
+================================================================================
+HATCH SPEED RESEARCH PROJECT
+================================================================================
+Goal: Reduce the ~8.5 second _-HATCH command time in TZ-ZONE boundary detection.
+
+================================================================================
+CURRENT STATE (2026-03-20)
+================================================================================
+
+The T24 TakeOff Wizard uses AutoCAD's _-HATCH command to detect room boundaries
+in architectural floor plan XREFs. The tool:
+1. Zooms to extents
+2. Runs _-HATCH with a pick point inside a room
+3. Extracts the boundary polyline (HPBOUNDRETAIN=1)
+4. Deletes the hatch, keeps the polyline
+5. Zooms back
+
+Timing breakdown for a typical room (DAYROOM B 125, ~659 sqft):
+  Text search:      188ms
+  Layer setup:        62ms   (freeze text layer, set sysvars)
+  Zoom extents:       32ms
+  _-HATCH cmd:     8,547ms   <<<< THE BOTTLENECK (97% of total)
+  Entity cleanup:     31ms
+  Zoom previous:      16ms
+  Door collapse:       0ms
+  Merge collinear:     0ms
+  Finalize:            0ms
+  Thaw + undo:       453ms
+  TOTAL:          ~9,400ms
+
+The _-HATCH command alone takes 8.5 seconds. Everything else is negligible.
+
+================================================================================
+DRAWING CONTEXT
+================================================================================
+
+- Large multi-family residential building floor plan
+- Geometry is in an XREF (external reference), not native entities
+- XREF name example: "25021 MHRC_20260318-Floor Plan - MASTER 1ST FLOOR"
+- Drawing units: inches (1 foot = 12 drawing units)
+- Coordinates far from origin: ~105,000 x ~59,000 (large coordinate values)
+- Multiple rooms per floor, typical room 250-700 sqft
+- Walls are lines/polylines inside the XREF block definition
+- Text labels (room names, numbers) are also inside the XREF
+
+HATCH sysvars used:
+  HPGAPTOL = 1.0 (gap tolerance in drawing units = 1 inch)
+  HPBOUNDRETAIN = 1 (retain boundary polyline after hatch creation)
+  HPNAME = "SOLID" (solid fill pattern)
+  HPASSOC = 0 (non-associative, so deleting hatch doesn't delete boundary)
+  CMDECHO = 0 (suppress command echo)
+
+================================================================================
+WHY _-HATCH AND NOT _-BOUNDARY?
+================================================================================
+
+_-BOUNDARY was the original approach but failed on many rooms because:
+- It couldn't see geometry inside XREFs reliably
+- Some rooms returned nil (no boundary found)
+- Results were inconsistent across zoom levels
+
+_-HATCH works on the same rooms where _-BOUNDARY fails because HATCH uses a
+different internal algorithm for flood-fill boundary detection. However, HATCH
+is slower because it also creates the fill pattern (even though we delete it).
+
+Both commands use HPGAPTOL for gap tolerance.
+
+================================================================================
+WHAT WE TRIED TO SPEED IT UP
+================================================================================
+
+1. REMOVED REGENALL
+   - Previous code ran REGENALL before every _-HATCH call
+   - REGENALL rebuilds the display list for the entire drawing (~2-3s)
+   - Removing it saved ~2-3s with no loss of reliability for HATCH
+   - (BOUNDARY needed REGENALL, HATCH does not)
+   Result: Saved ~2.5s per room
+
+2. PROGRESSIVE ZOOM (current -> local -> extents)
+   - Tried running HATCH at current zoom first (fastest), then local 100' window,
+     then zoom extents as fallback
+   - Problem: HATCH fails at current/local zoom on most rooms in this drawing
+   - All three attempts run sequentially, each taking ~1-2s even when failing
+   - Net result was SLOWER (3 attempts x ~1.5s = ~4.5s vs 1 attempt at extents = ~1.8s)
+   - Reverted to single zoom-extents approach
+   Result: Slower, reverted
+
+3. ZOOM EXTENTS ONCE PER SESSION
+   - Zoom to extents once at session start, stay zoomed for all rooms
+   - Problem: HATCH requires a FRESH zoom extents each time. Using a stale
+     zoom-extents from a previous call causes HATCH to fail (boundary not found)
+   - This is likely because AutoCAD regenerates internal spatial indices during
+     the zoom command, and HATCH depends on those indices
+   Result: HATCH failed, reverted
+
+4. PERFORMANCE SYSVARS
+   Tried setting before _-HATCH:
+   - HPQUICKPREVIEW = 0 (skip hatch preview) -- didn't exist in user's version
+   - REGENAUTO = 0 (no auto-regen) -- didn't exist in user's version
+   - SELECTIONPREVIEW = 0 (no hover highlight) -- already 0
+   - XREFNOTIFY = 0 (no xref notifications) -- no measurable improvement
+   Result: No improvement
+
+5. HATCH-AS-ZONE (keep hatch entity instead of polyline)
+   - Instead of creating hatch + extracting polyline + deleting hatch,
+     keep the hatch itself as the zone entity
+   - Would skip the polyline creation overhead
+   - Problem: _-HATCH with HPBOUNDRETAIN=0 gets stuck waiting for input
+     (the command-line version behaves differently without boundary retention)
+   - Also tried extracting loop vertices from hatch via VLA (vla-GetLoopAt)
+     to build polyline ourselves -- same stuck-hatch issue
+   Result: Command gets stuck, reverted
+
+6. VLA-BASED HATCH CREATION
+   - Instead of command-line _-HATCH, tried creating hatch programmatically
+     via vla-AddHatch
+   - Idea: skip the command overhead, create hatch object directly
+   - Problem: vla-AddHatch requires an existing boundary -- it doesn't DO
+     the flood-fill detection. The whole point is that we don't have the
+     boundary yet (that's what we're trying to find)
+   Result: Doesn't solve the problem (VLA hatch needs boundary as input)
+
+7. INTERACTIVE HATCH
+   - Let the user create the hatch manually using AutoCAD's native HATCH tool
+   - Problem: couldn't reliably capture the result back into LISP flow
+   - Tried SendCommand, pause, etc. -- all had timing/synchronization issues
+   Result: Unreliable, abandoned
+
+================================================================================
+WHY IS _-HATCH SO SLOW?
+================================================================================
+
+The 8.5 seconds is AutoCAD's internal flood-fill algorithm processing the
+entire drawing. What it does:
+
+1. From the pick point, cast rays in all directions
+2. Find intersections with ALL visible geometry (lines, arcs, polylines)
+3. Trace along detected edges to build a closed boundary loop
+4. Handle islands (interior boundaries)
+5. Generate the hatch fill pattern
+6. Create the hatch entity + boundary polyline (if HPBOUNDRETAIN=1)
+
+The drawing has:
+- Thousands of line/arc/polyline entities in the XREF
+- Large coordinate values (floating point precision concerns)
+- Multiple overlapping layers of geometry
+
+AutoCAD must evaluate ALL visible geometry during the flood-fill, even geometry
+far from the room. Zooming to extents makes all geometry "visible" to the
+algorithm, which is why it works but is slow.
+
+The time scales roughly with:
+- Number of visible entities in the drawing
+- Complexity of the geometry near the pick point
+- Gap tolerance (higher = more geometry to evaluate)
+- Drawing coordinate magnitude (farther from origin = slower)
+
+================================================================================
+IDEAS NOT YET TRIED
+================================================================================
+
+1. FREEZE NON-ESSENTIAL LAYERS before HATCH
+   - Freeze everything except wall layers before running _-HATCH
+   - Fewer visible entities = faster flood-fill
+   - Risk: might freeze layers that contain wall geometry, breaking HATCH
+   - Would need to know which layers contain walls (varies per drawing)
+
+2. TEMPORARY COPY NEAR ORIGIN
+   - Copy the room's surrounding geometry to near (0,0) temporarily
+   - Run HATCH there (smaller coordinates = better precision, possibly faster)
+   - Copy result back, delete temp geometry
+   - Complex but addresses the large-coordinate issue
+
+3. USE LISP-BASED BOUNDARY DETECTION
+   - Write our own flood-fill in LISP instead of relying on _-HATCH
+   - Would be very complex but fully controllable
+   - AutoLISP is interpreted and slow -- might be even slower than HATCH
+
+4. OBJECTARX / .NET PLUGIN
+   - Write boundary detection in C++ or C# as an AutoCAD plugin
+   - Full control, compiled speed
+   - Significant development effort, platform-dependent
+
+5. REDUCE DRAWING COMPLEXITY
+   - Split XREFs by floor/wing
+   - Use demand-loaded XREFs
+   - Freeze layers not needed for boundary detection before starting TZ-ZONE session
+
+6. USE A DIFFERENT COMMAND
+   - _BHATCH (legacy hatch) might have different performance
+   - -BPOLY (boundary polyline, alternative to -BOUNDARY)
+   - REGION command with different approach
+
+7. HATCH WITH BOUNDARY SET
+   - _-HATCH has an advanced option to specify a "boundary set" -- a selection
+     set of entities to consider. If we ssget only nearby geometry first and
+     pass that as the boundary set, HATCH would only evaluate those entities
+   - This could dramatically reduce the search space
+   - Command syntax: _-HATCH -> Advanced -> Boundary set -> Select objects
+
+8. PARALLEL PROCESSING
+   - Pre-compute boundaries for all rooms in background while user works
+   - Use reactor/timer to process rooms during idle time
+
+================================================================================
+CONSTRAINTS
+================================================================================
+
+- Must work in AutoCAD 2020+ (user's version)
+- Must work with XREF geometry (not native entities)
+- Must produce a closed LWPOLYLINE for each room
+- Solution must be in AutoLISP (no compiled plugins)
+- Must be reliable (prefer slow+correct over fast+wrong)
+- Room boundaries can be complex (doors, notches, angles)
+- North arrow rotation varies per project
+- Some rooms are at angles to the plan (not axis-aligned)
+
+================================================================================
+FINDINGS FROM AI MODELS
+================================================================================
+
+--- Claude (Opus 4.6) ---
+
+The _-HATCH command at 8.5s is the irreducible bottleneck. I've exhausted all
+LISP-level optimizations. The most promising untried approach is #7 above:
+using HATCH's built-in "boundary set" option to limit the search space. Instead
+of HATCH evaluating every visible entity in the drawing, we'd ssget a window
+of entities near the room and tell HATCH to only consider those.
+
+The command syntax would be something like:
+  (command "_-HATCH" "_Advanced" "_Boundary" "_Select" ss "" pt "")
+
+This is the only approach I know of that could reduce the 8.5s without leaving
+AutoLISP, because it attacks the root cause: too many entities being evaluated.
+
+Another observation: the Thaw+undo step takes 453ms. The _.-LAYER command for
+thawing is slow because it's a command-line layer operation. Using entmod to
+thaw the layer table entry might be faster.
+
+--- Gemini ---
+(pending)
+
+--- Codex ---
+(pending)
