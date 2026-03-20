@@ -575,7 +575,7 @@
         old-hpname  (getvar "HPNAME")
         old-hpassoc (getvar "HPASSOC"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 0)
+  (setvar "HPBOUNDRETAIN" 1)   ;; must be 1 or command gets stuck
   (setvar "HPNAME" "SOLID")
   (setvar "HPASSOC" 0)
   (setq last-ent (entlast)  best-hatch nil  best-area 0.0)
