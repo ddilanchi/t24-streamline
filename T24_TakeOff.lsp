@@ -1052,6 +1052,8 @@
                  "  |  Gap tol " (rtos gap-tol 2 1) "\""
                  "  |  CZ " *TZ-CLIMATE-ZONE*
                  "  |  North " (rtos *TZ-NORTH-ANGLE* 2 1) (chr 176)))
+  ;; REGENALL once per session (ensures display data is fresh for hatch)
+  (command "_.REGENALL")
   (princ "\n[T24] Make sure the room is visible on screen before clicking.")
   (princ "\n[T24] Click room name text for each zone. Enter when done.")
 
