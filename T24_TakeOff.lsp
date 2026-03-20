@@ -2808,7 +2808,7 @@
                 (setq count (1+ count))
                 (princ (strcat "\n[ZCOPY] #" (itoa count) " \"" zone-name
                                "\"  " (rtos area-ft 2 1) " sqft"))
-                (command "_.UNDO" "_End")))))))
+                (command "_.UNDO" "_End"))))))))
 
   (setvar "CLAYER" lsave)
   (if (> count 0) (c:TZ-WATCH))
