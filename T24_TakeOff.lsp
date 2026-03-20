@@ -2746,83 +2746,69 @@
   (setq base-pt (getpoint "\n[ZCOPY] Pick base/reference point on source: "))
   (if (null base-pt) (progn (princ "\n[ZCOPY] Cancelled.") (exit)))
 
-  ;; 3. Loop: click destinations
+  ;; 3. Loop: click text, then click destination
   (setq count 0)
-  (princ "\n[ZCOPY] Click destination points. Enter when done.")
-  (while (setq dest-pt (getpoint "\n[ZCOPY] Destination point (Enter to finish): "))
-    (command "_.UNDO" "_Begin")
-
-    ;; Scan for nearby text BEFORE creating polyline (so nentselp hits text, not our zone)
-    (setq nearby-texts '()
+  (princ "\n[ZCOPY] For each room: click name text, then click destination. Enter to finish.")
+  (setq sel T)
+  (while sel
+    (setq sel (nentsel "\n[ZCOPY] Click room name text (Enter to finish): ")
           zone-name nil)
-    (tz-scan-nearby-text dest-pt nil "" 36.0)
-    (if nearby-texts
+    (if (null sel)
+      (princ "\n[ZCOPY] Finishing.")
       (progn
-        (setq nearby-texts (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
-        ;; Use the two closest texts as name (like "UNIT B21")
-        (setq zone-name (cadr (car nearby-texts)))
-        (if (and (> (length nearby-texts) 1)
-                 (< (car (cadr nearby-texts)) 48.0))
-          (setq zone-name (strcat zone-name " " (cadr (cadr nearby-texts)))))))
+        ;; Validate text
+        (if (member (cdr (assoc 0 (entget (car sel)))) '("TEXT" "MTEXT"))
+          (setq zone-name (vl-string-trim " " (cdr (assoc 1 (entget (car sel)))))
+                txt-pt    (cadr sel)))
+        (if (or (null zone-name) (= zone-name ""))
+          (princ "\n[ZCOPY] Not text, try again.")
+          (progn
+            ;; Auto-append nearby text (room number)
+            (setq nearby-texts '())
+            (tz-scan-nearby-text txt-pt (car sel) zone-name 36.0)
+            (if nearby-texts
+              (progn
+                (setq nearby-texts (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
+                (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))))
+            (if (> (strlen zone-name) 30) (setq zone-name (substr zone-name 1 30)))
+            (princ (strcat "\n[ZCOPY] Zone: \"" zone-name "\""))
 
-    ;; If no text found, prompt for name
-    (if (null zone-name)
-      (progn
-        (setq zone-name (getstring T "\n[ZCOPY] No text found. Enter zone name: "))
-        (if (= zone-name "") (setq zone-name "UNNAMED"))))
-
-    (if (> (strlen zone-name) 30) (setq zone-name (substr zone-name 1 30)))
-
-    ;; Compute offset
-    (setq dx (- (car dest-pt) (car base-pt))
-          dy (- (cadr dest-pt) (cadr base-pt)))
-
-    ;; Create offset copy of polyline
-    (setq new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts))
-    (setvar "CLAYER" *TZ-LYR-ZONE*)
-    (setq elist
-      (list '(0 . "LWPOLYLINE")
-            '(100 . "AcDbEntity")
-            (cons 8 *TZ-LYR-ZONE*)
-            '(100 . "AcDbPolyline")
-            (cons 90 (length new-pts))
-            '(70 . 1)))
-    (foreach p new-pts
-      (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
-    (entmake elist)
-    (setq new-ent (entlast))
-
-    ;; Compute area and centroid
-    (setq area-ft  (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
-                      (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
-          centroid (tz-centroid new-pts)
-          zone-id  (tz-next-zone-id))
-
-    ;; Store XDATA
-    (tz-set-xdata new-ent
-      (list *TZ-APP*
-        (cons 1000 "ZONE")
-        (cons 1000 zone-id)
-        (cons 1000 zone-name)
-        (cons 1040 src-cht)
-        (cons 1070 src-fl)
-        (cons 1000 src-cond)
-        (cons 1000 src-occ)))
-
-    ;; Label + reactor
-    (tz-zone-label dest-pt zone-name area-ft src-cht src-fl zone-id)
-
-    (setq *TZ-REACTORS*
-      (cons (vlr-object-reactor
-              (list (vlax-ename->vla-object new-ent))
-              "T24-Zone-Update"
-              '((:vlr-modified . tz-zone-modified-callback)))
-            (if *TZ-REACTORS* *TZ-REACTORS* '())))
-
-    (setq count (1+ count))
-    (princ (strcat "\n[ZCOPY] #" (itoa count) " \"" zone-name
-                   "\"  " (rtos area-ft 2 1) " sqft"))
-    (command "_.UNDO" "_End"))
+            ;; Click destination
+            (setq dest-pt (getpoint "\n[ZCOPY] Click destination point: "))
+            (if dest-pt
+              (progn
+                (command "_.UNDO" "_Begin")
+                (setq dx (- (car dest-pt) (car base-pt))
+                      dy (- (cadr dest-pt) (cadr base-pt))
+                      new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts))
+                (setvar "CLAYER" *TZ-LYR-ZONE*)
+                (setq elist
+                  (list '(0 . "LWPOLYLINE") '(100 . "AcDbEntity")
+                        (cons 8 *TZ-LYR-ZONE*) '(100 . "AcDbPolyline")
+                        (cons 90 (length new-pts)) '(70 . 1)))
+                (foreach p new-pts
+                  (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
+                (entmake elist)
+                (setq new-ent (entlast)
+                      area-ft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
+                                 (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
+                      zone-id (tz-next-zone-id))
+                (tz-set-xdata new-ent
+                  (list *TZ-APP*
+                    (cons 1000 "ZONE") (cons 1000 zone-id) (cons 1000 zone-name)
+                    (cons 1040 src-cht) (cons 1070 src-fl)
+                    (cons 1000 src-cond) (cons 1000 src-occ)))
+                (tz-zone-label dest-pt zone-name area-ft src-cht src-fl zone-id)
+                (setq *TZ-REACTORS*
+                  (cons (vlr-object-reactor
+                          (list (vlax-ename->vla-object new-ent))
+                          "T24-Zone-Update"
+                          '((:vlr-modified . tz-zone-modified-callback)))
+                        (if *TZ-REACTORS* *TZ-REACTORS* '())))
+                (setq count (1+ count))
+                (princ (strcat "\n[ZCOPY] #" (itoa count) " \"" zone-name
+                               "\"  " (rtos area-ft 2 1) " sqft"))
+                (command "_.UNDO" "_End")))))))
 
   (setvar "CLAYER" lsave)
   (if (> count 0) (c:TZ-WATCH))
