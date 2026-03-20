@@ -1115,12 +1115,10 @@
         ;; ── Launch HATCH tool, wait for user to finish ──
         (setq last-ent (entlast))
         (setvar "CLAYER" *TZ-LYR-ZONE*)
-        (princ "\n[T24] >>> HATCH tool opening. Click inside the room, then close/Enter. <<<")
+        (princ "\n[T24] >>> Click inside the room to hatch it. <<<")
 
-        ;; Use vla-SendCommand to queue HATCH -- it runs interactively
-        ;; while LISP waits via getstring for the user to signal completion
-        (vla-SendCommand (vla-get-ActiveDocument (vlax-get-acad-object)) "_.HATCH\n")
-        (getstring "\n[T24] Press Enter here AFTER closing the HATCH tool: ")
+        ;; command-s allows interactive command completion (AutoCAD 2015+)
+        (command-s "_.HATCH")
 
         ;; Thaw text layer
         (if txt-lyr (tz-thaw-layer txt-lyr))
