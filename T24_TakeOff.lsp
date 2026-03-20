@@ -1113,39 +1113,34 @@
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
         ;; ── User creates hatch manually ──
-        ;; Remember what exists before the user hatches
         (setq last-ent (entlast))
         (setvar "CLAYER" *TZ-LYR-ZONE*)
-        (princ "\n[T24] >>> HATCH the room now. Press Enter/Esc when done. <<<")
+        (princ "\n[T24] >>> Create a HATCH in the room, then click it. <<<")
+        (princ "\n[T24] >>> Or click an existing hatch to tag it. <<<")
 
-        ;; Launch native HATCH tool -- pause suspends LISP until user finishes
-        (command "_.HATCH" pause)
-
-        ;; Thaw text layer immediately
-        (if txt-lyr
-          (progn
-            (tz-thaw-layer txt-lyr)))
-
-        ;; ── Find the new hatch entity ──
+        ;; Wait for user to select a hatch entity
         (setq ent nil)
-        (if (not (equal (entlast) last-ent))
-          (progn
-            (setq scan-ent (entnext last-ent)  all-new '())
-            (while scan-ent
-              (setq all-new (cons scan-ent all-new))
-              (setq scan-ent (entnext scan-ent)))
-            ;; Find the hatch
-            (foreach e all-new
-              (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
-                (setq ent e)))
-            ;; Set up: layer, transparency
-            (if ent
-              (progn
-                (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
-                (vla-put-Transparency (vlax-ename->vla-object ent) 50)))
-            ;; Delete any stray polylines (from HPBOUNDRETAIN)
-            (foreach e all-new
-              (if (not (equal e ent)) (entdel e)))))
+        (while (null ent)
+          (setq sel2 (entsel "\n[T24] Select the hatch (Enter to skip): "))
+          (if (null sel2)
+            (progn (princ "\n[T24] Skipped.") (setq ent nil choice nil)
+                   ;; break out of while
+                   (setq ent T))  ;; temp set to exit loop, will reset below
+            (progn
+              (setq ent (car sel2))
+              (if (/= (cdr (assoc 0 (entget ent))) "HATCH")
+                (progn
+                  (princ "\n[T24] Not a hatch -- try again.")
+                  (setq ent nil))
+                (progn
+                  ;; Move to T24-ZONE layer, set transparency
+                  (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
+                  (vla-put-Transparency (vlax-ename->vla-object ent) 50))))))
+        ;; Reset the temp T we used to break the loop
+        (if (= ent T) (setq ent nil))
+
+        ;; Thaw text layer
+        (if txt-lyr (tz-thaw-layer txt-lyr))
 
         (setvar "CMDDIA"  cd)
         (setvar "CMDECHO" ce)
