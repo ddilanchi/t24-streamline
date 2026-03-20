@@ -569,11 +569,13 @@
   (setq old-gaptol  (getvar "HPGAPTOL")
         old-hpbound (getvar "HPBOUNDRETAIN"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 0)
+  (setvar "HPBOUNDRETAIN" 1)
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
   (setq last-ent (entlast)  ent nil)
 
-  ;; Use interactive HATCH engine (faster than _-HATCH)
-  (command "_.HATCH" pt "")
+  ;; Command-line hatch (HPBOUNDRETAIN=1 required or it hangs)
+  (command "_-HATCH" pt "")
 
   ;; Collect new entities, find the hatch
   (if (not (equal (entlast) last-ent))
@@ -1097,100 +1099,63 @@
         (princ (strcat "\n[TIME] Text search: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (princ (strcat "\n[T24] Click point: " (rtos (car txt-pt) 2 2) ", " (rtos (cadr txt-pt) 2 2)))
 
-        ;; ── Freeze text layers + door layers before BOUNDARY ──────────────
+        ;; ── Freeze text layer so hatch doesn't see text geometry ──
         (setq ce (getvar "CMDECHO")
               cd (getvar "CMDDIA")
               cl (getvar "CLAYER"))
         (setvar "CMDECHO" 0)
         (setvar "CMDDIA"  0)
-        (setvar "CLAYER"  *TZ-LYR-ZONE*)
 
-        ;; Freeze the clicked text layer before BOUNDARY so text geometry doesn't
-        ;; interfere with boundary detection. Thawed per-room after cleanup below.
         (if txt-lyr
           (progn
-            (princ (strcat "\n[T24] Freezing layer: " txt-lyr))
             (tz-freeze-layer txt-lyr)
-            ;; Track for error-handler cleanup in case user cancels mid-room
             (if (not (member txt-lyr txt-lyrs-frozen))
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
-        ;; ── Run boundary ──
-        (princ "\n[T24] Running HATCH boundary...")
-        (setq *tz-t0* (getvar "MILLISECS"))
-        (setq ent (tz-create-zone-hatch txt-pt gap-tol))
-        (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
-        (if ent
-          (princ "\n[T24] Boundary created.")
-          (princ "\n[T24] Boundary returned nil."))
+        ;; ── User creates hatch manually ──
+        ;; Remember what exists before the user hatches
+        (setq last-ent (entlast))
+        (setvar "CLAYER" *TZ-LYR-ZONE*)
+        (princ "\n[T24] >>> HATCH the room now. Press Enter/Esc when done. <<<")
 
-        ;; If failed, let user retry, patch gaps, or fall back
-        (setq patch-lines '())
-        (while (and (null ent)
-                    (progn
-                      (princ "\n[T24] BOUNDARY failed at that point.")
-                      (setq choice (tz-boundary-popup))
-                      (and choice  ;; nil = Cancel → exit loop
-                           (or (= choice "Retry") (= choice "Patch")))))
+        ;; Launch native HATCH tool -- user clicks inside room
+        (command "_.HATCH")
+        ;; HATCH tool runs interactively -- user clicks, adjusts, closes
+        ;; When they finish (Enter/Esc/close ribbon), control returns here
 
-          (if (= choice "Patch")
-            ;; ── Patch mode: draw lines to seal gaps, then auto-retry ──
-            (progn
-              (princ "\n[T24]   Draw lines to seal gaps. Click pairs of points, Enter when done.")
-              (while
-                (progn
-                  (setq pp1 (getpoint "\n[T24]   Line start (Enter to finish patching): "))
-                  (not (null pp1)))
-                (setq pp2 (getpoint pp1 "\n[T24]   Line end: "))
-                (if pp2
-                  (progn
-                    (tz-make-line pp1 pp2)
-                    (setq patch-lines (cons (entlast) patch-lines))
-                    (princ "\n[T24]   Patch line drawn."))
-                  (princ "\n[T24]   No endpoint, skipped.")))
-              (if patch-lines
-                (progn
-                  (princ (strcat "\n[T24]   " (itoa (length patch-lines))
-                                 " patch line(s). Retrying..."))
-                  (setq ent (tz-create-zone-hatch txt-pt gap-tol)))
-                (princ "\n[T24]   No lines drawn.")))
+        ;; Thaw text layer immediately
+        (if txt-lyr
+          (progn
+            (tz-thaw-layer txt-lyr)))
 
-            ;; ── Retry mode: pick a new point, try full gap tolerance range ──
-            (progn
-              (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
-              (if txt-pt
-                (setq ent (tz-create-zone-hatch txt-pt gap-tol))
-                (princ "\n[T24]   No point picked."))))
-
-          ) ;; end while
-
-        ;; Clean up temporary lines after boundary succeeds or user moves on
-        (foreach pent patch-lines (entdel pent))
-        (if patch-lines
-          (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
+        ;; ── Find the new hatch entity ──
+        (setq ent nil)
+        (if (not (equal (entlast) last-ent))
+          (progn
+            (setq scan-ent (entnext last-ent)  all-new '())
+            (while scan-ent
+              (setq all-new (cons scan-ent all-new))
+              (setq scan-ent (entnext scan-ent)))
+            ;; Find the hatch
+            (foreach e all-new
+              (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
+                (setq ent e)))
+            ;; Set up: layer, transparency
+            (if ent
+              (progn
+                (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
+                (vla-put-Transparency (vlax-ename->vla-object ent) 50)))
+            ;; Delete any stray polylines (from HPBOUNDRETAIN)
+            (foreach e all-new
+              (if (not (equal e ent)) (entdel e)))))
 
         (setvar "CMDDIA"  cd)
         (setvar "CMDECHO" ce)
         (setvar "CLAYER"  cl)
 
-        ;; ── Manual fallback if BOUNDARY never succeeded ──────────────────
-        (if (null ent)
-          (cond
-            ((null choice)
-             (princ "\n[T24] Cancelled, skipping this zone."))
-            ((= choice "Rect")
-             ;; Draw rectangle, hatch inside it, delete the polyline
-             (progn
-               (setq ent (tz-pick-rectangle))
-               (if ent
-                 (progn
-                   (setq ent (tz-hatch-inside-pline ent))))))
-            (T  ;; "Manual" -- draw polyline, hatch inside it
-             (progn
-               (setq ent (tz-pick-corners))
-               (if ent
-                 (progn
-                   (setq ent (tz-hatch-inside-pline ent))))))))
+        (if ent
+          (princ (strcat "\n[T24] Hatch found (" (rtos (tz-zone-area-sqft ent) 2 1) " sqft)"))
+          (princ "\n[T24] No hatch created, skipping this zone."))
 
         (if ent
           (progn
