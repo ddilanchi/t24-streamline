@@ -1706,9 +1706,9 @@
   (setq rot-rad (* (/ pi 180.0) wall-ang-offset)
         cx (car centroid) cy (cadr centroid))
 
-  ;; Rotate all points by -wall-ang-offset so the angled walls align with X/Y
+  ;; Rotate all points by wall-ang-offset (CCW) so angled walls align with X/Y
   (setq rpts (mapcar '(lambda (p)
-    (tz-rot-pt (list (- (car p) cx) (- (cadr p) cy)) (- rot-rad))) pts))
+    (tz-rot-pt (list (- (car p) cx) (- (cadr p) cy)) rot-rad)) pts))
 
   ;; Bounding box in rotated space
   (setq rx1 (apply 'min (mapcar 'car rpts))
@@ -1719,8 +1719,8 @@
         ext-y (- ry2 ry1))
 
   ;; Which side is the click on? (in rotated space)
-  (setq rdx (car (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) (- rot-rad)))
-        rdy (cadr (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) (- rot-rad))))
+  (setq rdx (car (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) rot-rad))
+        rdy (cadr (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) rot-rad)))
 
   (if (> (abs rdx) (abs rdy))
     (if (> rdx 0) (setq side "R") (setq side "L"))
@@ -1749,12 +1749,12 @@
            pv1 (list (- rx1 dim-off) ry1) pv2 (list (- rx1 dim-off) ry2)
            mid-pt (list rx1 (* 0.5 (+ ry1 ry2))))))
 
-  ;; Rotate all points back to world space
-  (setq p1 (tz-rot-pt p1 rot-rad)
-        p2 (tz-rot-pt p2 rot-rad)
-        pv1 (tz-rot-pt pv1 rot-rad)
-        pv2 (tz-rot-pt pv2 rot-rad)
-        mid-pt (tz-rot-pt mid-pt rot-rad))
+  ;; Rotate all points back to world space (undo the CCW rotation)
+  (setq p1 (tz-rot-pt p1 (- rot-rad))
+        p2 (tz-rot-pt p2 (- rot-rad))
+        pv1 (tz-rot-pt pv1 (- rot-rad))
+        pv2 (tz-rot-pt pv2 (- rot-rad))
+        mid-pt (tz-rot-pt mid-pt (- rot-rad)))
 
   ;; Translate back to world
   (setq p1 (list (+ (car p1) cx) (+ (cadr p1) cy))
@@ -1764,9 +1764,10 @@
         mid-pt (list (+ (car mid-pt) cx) (+ (cadr mid-pt) cy) 0.0))
 
   ;; Compute final azimuth:
-  ;; raw_az is relative to rotated space. Add wall-ang-offset to get AutoCAD angle.
-  ;; Then subtract north arrow to get true azimuth. Then snap to nearest cardinal.
-  (setq az (rem (+ raw-az wall-ang-offset
+  ;; raw_az = facing direction in rotated space (0=N, 90=E, etc.)
+  ;; Subtract wall-ang-offset to undo rotation back to AutoCAD space.
+  ;; Then subtract north arrow to get true azimuth. Snap to nearest cardinal.
+  (setq az (rem (+ raw-az (- wall-ang-offset)
                    (if *TZ-NORTH-ANGLE* (- *TZ-NORTH-ANGLE*) 0.0)
                    720.0) 360.0))
   ;; Snap to nearest cardinal (0, 45, 90, 135, 180, 225, 270, 315)
@@ -1802,7 +1803,7 @@
   (setq wall-ht (getreal "\n[T24] Wall height (ft) <9>: "))
   (if (null wall-ht) (setq wall-ht 9.0))
 
-  (setq wall-ang (getreal "\n[T24] Wall angle offset (deg, 0=axis-aligned) <0>: "))
+  (setq wall-ang (getreal "\n[T24] Wall rotation from vertical (0=axis-aligned, or degrees CW) <0>: "))
   (if (null wall-ang) (setq wall-ang 0.0))
 
   (setq label-ht 6.0
