@@ -70,47 +70,6 @@
     (setq i (+ i 2)))
   pts)
 
-;; Get vertices from a HATCH entity's largest loop
-(defun tz-hatch-get-pts (ent / obj nloops i pts best-pts best-area
-                               loop-area j x y n verts bulges)
-  (setq obj (vlax-ename->vla-object ent)
-        nloops (vla-get-NumberOfLoops obj)
-        best-pts nil  best-area 0.0  i 0)
-  (repeat nloops
-    (vla-GetLoopAt obj i 'verts 'bulges)
-    (if verts
-      (progn
-        (setq pts '()
-              n (/ (length (vlax-safearray->list (vlax-variant-value verts))) 2)
-              j 0)
-        (repeat n
-          (setq x (vlax-safearray-get-element (vlax-variant-value verts) (* 2 j))
-                y (vlax-safearray-get-element (vlax-variant-value verts) (1+ (* 2 j))))
-          (setq pts (append pts (list (list x y))))
-          (setq j (1+ j)))
-        (setq loop-area (abs (apply '+ (mapcar '(lambda (a b)
-          (- (* (car a) (cadr b)) (* (car b) (cadr a))))
-          pts (append (cdr pts) (list (car pts)))))))
-        (if (> loop-area best-area)
-          (setq best-area loop-area  best-pts pts))))
-    (setq i (1+ i)))
-  best-pts)
-
-;; Get area from any zone entity (HATCH or LWPOLYLINE) in sqft
-(defun tz-zone-area-sqft (ent / etype obj)
-  (setq etype (cdr (assoc 0 (entget ent)))
-        obj   (vlax-ename->vla-object ent))
-  (/ (if (= etype "HATCH")
-       (vla-get-Area obj)
-       (vlax-curve-getarea obj))
-     (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
-
-;; Get vertices from any zone entity (HATCH or LWPOLYLINE)
-(defun tz-zone-get-pts (ent)
-  (if (= (cdr (assoc 0 (entget ent))) "HATCH")
-    (tz-hatch-get-pts ent)
-    (tz-get-pts ent)))
-
 ;; Average-of-vertices centroid (good enough for room shapes)
 (defun tz-centroid (pts / n sx sy)
   (setq n (length pts) sx 0.0 sy 0.0)
@@ -243,7 +202,7 @@
 (defun tz-next-zone-id ( / ss)
   (if (null *TZ-ZONE-COUNT*)
     (progn
-      (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>"))))
+      (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
       (setq *TZ-ZONE-COUNT* (if ss (sslength ss) 0))))
   (setq *TZ-ZONE-COUNT* (1+ *TZ-ZONE-COUNT*))
   (strcat "Z-" (tz-pad (itoa *TZ-ZONE-COUNT*) 3)))
@@ -380,13 +339,14 @@
   (setq dcl-path (vl-filename-mktemp "tz_bnd" nil ".dcl"))
   (setq f (open dcl-path "w"))
   (write-line "tz_bnd : dialog {" f)
-  (write-line "  label = \"Hatch Failed\";" f)
+  (write-line "  label = \"BOUNDARY Failed\";" f)
   (write-line "  : column {" f)
   (write-line "    : button { key = \"retry\";  label = \"&Retry at new point\"; width = 32; fixed_width = true; }" f)
   (write-line "    : button { key = \"patch\";  label = \"&Patch gaps (draw lines)\"; width = 32; fixed_width = true; }" f)
   (write-line "    : spacer { height = 0.2; }" f)
-  (write-line "    : button { key = \"manual\"; label = \"&Draw polyline (hatch inside)\"; width = 32; fixed_width = true; }" f)
-  (write-line "    : button { key = \"rect\";   label = \"Draw &rectangle (hatch inside)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"manual\"; label = \"&Draw polyline (click corners)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"rect\";   label = \"Draw &rectangle (2 corners)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"select\"; label = \"&Select existing polyline\"; width = 32; fixed_width = true; }" f)
   (write-line "    : spacer { height = 0.3; }" f)
   (write-line "    : button { key = \"cancel\"; label = \"Cancel\"; is_cancel = true; width = 32; fixed_width = true; }" f)
   (write-line "  }" f)
@@ -402,6 +362,7 @@
       (action_tile "patch"  "(setq result \"Patch\")  (done_dialog 1)")
       (action_tile "manual" "(setq result \"Manual\") (done_dialog 1)")
       (action_tile "rect"   "(setq result \"Rect\")   (done_dialog 1)")
+      (action_tile "select" "(setq result \"Select\") (done_dialog 1)")
       (action_tile "cancel" "(setq result nil) (done_dialog 0)")
       (start_dialog)
       (unload_dialog dcl-id)))
@@ -461,25 +422,6 @@
               (cons 10 (list x1 y2))))
       (entmake elist)
       (entlast))))
-
-;; Create hatch inside a closed polyline, delete the polyline, return hatch.
-;; Create hatch directly from a closed polyline via VLA (no _-HATCH command).
-;; Keeps the polyline as the boundary loop. Returns hatch ename or nil.
-(defun tz-hatch-inside-pline (pline-ent / mspace pline-obj hatch-obj loop-arr hatch-ent)
-  (setq mspace    (vla-get-ModelSpace (vla-get-ActiveDocument (vlax-get-acad-object)))
-        pline-obj (vlax-ename->vla-object pline-ent))
-  (setq hatch-obj (vla-AddHatch mspace acHatchPatternTypePreDefined "SOLID" :vlax-true acHatchObject))
-  (setq loop-arr (vlax-make-safearray vlax-vbObject '(0 . 0)))
-  (vlax-safearray-put-element loop-arr 0 pline-obj)
-  (vla-AppendOuterLoop hatch-obj loop-arr)
-  (vla-Evaluate hatch-obj)
-  (vla-put-Layer hatch-obj *TZ-LYR-ZONE*)
-  (vla-put-Transparency hatch-obj 50)
-  (setq hatch-ent (vlax-vla-object->ename hatch-obj))
-  (vlax-release-object hatch-obj)
-  ;; Delete the polyline (hatch is independent, non-associative)
-  (entdel pline-ent)
-  hatch-ent)
 
 ;; ── Layer freeze/thaw helpers ────────────────────────────────────────────────
 ;; Use _.-LAYER command (command-line version, NOT dialog _.LAYER).
@@ -569,63 +511,57 @@
   ent)
 
 ;; ── Hatch-based boundary detection ──────────────────────────────────────────
-;; Create zone hatch at pt. Uses _-HATCH to detect boundary (gets a polyline),
-;; then creates a clean SOLID hatch via VLA from that polyline, deletes originals.
-;; Returns hatch ename or nil. Room must be visible on screen.
-(defun tz-create-zone-hatch (pt gap-tol / old-gaptol old-hpbound last-ent
-                                          scan-ent all-new e pline-ent hatch-ent
-                                          best-area cur-area
-                                          mspace hatch-obj loop-arr pline-obj)
+;; Creates a temporary HATCH, extracts its associative boundary polyline,
+;; then deletes the hatch. Works where _-BOUNDARY fails (XREF geometry).
+(defun tz-try-hatch-boundary (pt gap-tol / old-gaptol old-hpbound old-hpname
+                                           old-hpassoc last-ent
+                                           hatch-ent scan-ent ent etype
+                                           best-area cur-area)
+  ;; Save and set sysvars
   (setq old-gaptol  (getvar "HPGAPTOL")
-        old-hpbound (getvar "HPBOUNDRETAIN"))
+        old-hpbound (getvar "HPBOUNDRETAIN")
+        old-hpname  (getvar "HPNAME")
+        old-hpassoc (getvar "HPASSOC"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 1)
-  (setvar "HPNAME" "SOLID")
-  (setvar "HPASSOC" 0)
-  (setq last-ent (entlast)  pline-ent nil  hatch-ent nil)
+  (setvar "HPBOUNDRETAIN" 1)   ;; retain boundary polyline
+  (setvar "HPNAME" "SOLID")    ;; solid fill
+  (setvar "HPASSOC" 0)         ;; non-associative (simpler cleanup)
+  (setq last-ent (entlast))
 
-  ;; Step 1: _-HATCH to detect boundary (creates hatch + polyline)
+  ;; Simple hatch: pick internal point, press Enter to finish
   (command "_-HATCH" pt "")
 
-  ;; Step 2: Collect new entities, find the largest polyline
+  ;; Collect all new entities, find largest polyline, delete rest
   (if (not (equal (entlast) last-ent))
     (progn
-      (setq scan-ent (entnext last-ent)  all-new '()  best-area 0.0)
+      (setq scan-ent (entnext last-ent)  ent nil  best-area 0.0  all-new '())
       (while scan-ent
         (setq all-new (cons scan-ent all-new))
         (setq scan-ent (entnext scan-ent)))
+      ;; Find largest polyline
       (foreach e all-new
         (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
           (progn
             (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object e)))
             (if (> cur-area best-area)
-              (setq best-area cur-area  pline-ent e)))))))
+              (setq best-area cur-area  ent e)))))
+      ;; Delete everything except the keeper
+      (foreach e all-new
+        (if (not (equal e ent)) (entdel e)))))
 
-  ;; Step 3: Create clean hatch via VLA from the polyline
-  (if pline-ent
-    (progn
-      (setq mspace   (vla-get-ModelSpace (vla-get-ActiveDocument (vlax-get-acad-object)))
-            pline-obj (vlax-ename->vla-object pline-ent))
-      ;; Create hatch: solid fill, non-associative
-      (setq hatch-obj (vla-AddHatch mspace acHatchPatternTypePreDefined "SOLID" :vlax-true acHatchObject))
-      ;; Build outer loop array with the polyline
-      (setq loop-arr (vlax-make-safearray vlax-vbObject '(0 . 0)))
-      (vlax-safearray-put-element loop-arr 0 pline-obj)
-      (vla-AppendOuterLoop hatch-obj loop-arr)
-      (vla-Evaluate hatch-obj)
-      ;; Set layer and transparency
-      (vla-put-Layer hatch-obj *TZ-LYR-ZONE*)
-      (vla-put-Transparency hatch-obj 50)
-      ;; Get ename for return
-      (setq hatch-ent (vlax-vla-object->ename hatch-obj))
-      (vlax-release-object hatch-obj)))
-
-  ;; Step 4: Delete ALL entities from _-HATCH (both the temp hatch and polylines)
-  (foreach e all-new (entdel e))
-
+  ;; Restore sysvars
   (setvar "HPGAPTOL" old-gaptol)
   (setvar "HPBOUNDRETAIN" old-hpbound)
-  hatch-ent)
+  (setvar "HPNAME" old-hpname)
+  (setvar "HPASSOC" old-hpassoc)
+  ent)
+
+;; Hatch-based boundary: zoom extents, try once, zoom back
+(defun tz-hatch-boundary-v2 (pt gap-tol / ent)
+  (command "_.ZOOM" "_Extents")
+  (setq ent (tz-try-hatch-boundary pt gap-tol))
+  (command "_.ZOOM" "_Previous")
+  ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
 
@@ -685,7 +621,6 @@
               (setq seen (cons (vla-get-handle (vlax-ename->vla-object ent2)) seen))
               (if (and (/= str2 "")
                        (/= str2 skip-str)
-                       (wcmatch str2 "*#*")  ;; must contain a number
                        (not (tz-skip-text-p str2))
                        (not (wcmatch (strcase lyr2) "T24-*")))
                 (progn
@@ -758,7 +693,6 @@
         n     (length verts)
         n-orig n)
 
-  (princ (strcat "\n[DBG] door-collapse start: " (itoa n) " verts"))
   (setq found-door T  skipped-arcs '())
   (while found-door
     (setq found-door nil  n (length verts))
@@ -780,10 +714,6 @@
                            (cadr (nth arc-idx verts))))
         (setq arc-key (strcat (rtos (car arc-pt) 2 1) ","
                               (rtos (cadr arc-pt) 2 1)))
-        (princ (strcat "\n[DBG]   arc at i=" (itoa arc-idx)
-                       " (" (rtos (car arc-pt) 2 2)
-                       "," (rtos (cadr arc-pt) 2 2) ")"
-                       " bulge=" (rtos (caddr (nth arc-idx verts)) 2 4)))
 
         ;; ── Walk FORWARD from arc through tiny segs (< 10") ──
         (setq fwd-door-j nil  fwd-door-k nil  i 1)
@@ -793,9 +723,6 @@
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-          (princ (strcat "\n[DBG]     fwd step " (itoa i)
-                         " seg " (itoa j) "->" (itoa k)
-                         " len=" (rtos slen 2 2) "\""))
           (cond
             ((and (>= slen 30.0) (<= slen 44.0))
              (setq fwd-door-j j  fwd-door-k k))
@@ -821,9 +748,6 @@
                 slen (tz-cp-seg-len
                        (list (car (nth j verts)) (cadr (nth j verts)))
                        (list (car (nth k verts)) (cadr (nth k verts)))))
-          (princ (strcat "\n[DBG]     bwd step " (itoa i)
-                         " seg " (itoa j) "->" (itoa k)
-                         " len=" (rtos slen 2 2) "\""))
           (cond
             ((and (>= slen 30.0) (<= slen 44.0))
              (setq bwd-door-j j  bwd-door-k k))
@@ -839,9 +763,6 @@
             ((< slen 10.0)
              (setq i (1+ i)))
             (T (setq i 99))))
-
-        (princ (strcat "\n[DBG]   fwd-door=" (if fwd-door-j (strcat (itoa fwd-door-j) "->" (itoa fwd-door-k)) "nil")
-                       "  bwd-door=" (if bwd-door-j (strcat (itoa bwd-door-j) "->" (itoa bwd-door-k)) "nil")))
 
         (cond
           ;; Only one direction found a door
@@ -859,8 +780,6 @@
 
         (if best-j
           (progn
-            (princ (strcat "\n[DBG]   door seg " (itoa best-j) "->" (itoa best-k)))
-
             ;; Which end of door is closer to arc (polygon distance)?
             (setq fwd-dist (rem (+ (- best-j arc-idx) n) n)
                   bwd-dist (rem (+ (- arc-idx best-j) n) n))
@@ -899,10 +818,6 @@
                   (setq to-remove (cons p to-remove))
                   (setq p (rem (+ (1- p) n) n)))))
 
-            (princ (strcat "\n[DBG]   removing " (itoa (length to-remove)) " verts"
-                           " (arc=" (itoa arc-idx)
-                           " inside=" (itoa inside-end) ")"))
-
             ;; Draw debug circles at each removed vertex
             (setq dbg-num 1)
             (foreach ri to-remove
@@ -923,31 +838,11 @@
               (if (not (member k to-remove))
                 (setq new-verts (append new-verts (list (nth k verts)))))
               (setq k (1+ k)))
-            (setq verts new-verts  found-door T)
-            (princ (strcat "\n[DBG]   verts after: " (itoa (length verts)))))
-          ;; No door — skip this arc
+            (setq verts new-verts  found-door T))
+          ;; No door -- skip this arc
           (progn
-            (princ (strcat "\n[DBG]   NO MATCH arc " (itoa arc-idx)
-                           " — skipping (nearby segs):"))
-            (setq j 0)
-            (repeat n
-              (setq k (rem (1+ j) n)
-                    slen (tz-cp-seg-len
-                           (list (car (nth j verts)) (cadr (nth j verts)))
-                           (list (car (nth k verts)) (cadr (nth k verts))))
-                    mid-pt (list
-                      (* 0.5 (+ (car (nth j verts)) (car (nth k verts))))
-                      (* 0.5 (+ (cadr (nth j verts)) (cadr (nth k verts)))))
-                    d (tz-cp-seg-len arc-pt mid-pt))
-              (if (< d 120.0)
-                (princ (strcat "\n[DBG]     seg " (itoa j) "->" (itoa k)
-                               " len=" (rtos slen 2 2) "\""
-                               " dist=" (rtos d 2 2) "\"")))
-              (setq j (1+ j)))
             (setq skipped-arcs (cons arc-key skipped-arcs))
             (setq found-door T))))))
-
-  (princ (strcat "\n[DBG] door-collapse done: " (itoa (length verts)) " verts remaining"))
 
   ;; Write modified vertices back to polyline
   (if (< (length verts) n-orig)
@@ -1023,8 +918,6 @@
     (if froze (tz-thaw-layers froze))
     (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
     (if hpg-save (setvar "HPGAPTOL" hpg-save) (setvar "HPGAPTOL" 0.0))
-    (if hpb-save (setvar "HPBOUNDRETAIN" hpb-save))
-    (if hpn-save (setvar "HPNAME" hpn-save))
     (*pop-error-using-command*)
     (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
       (princ (strcat "\n[T24] Error: " msg)))
@@ -1032,9 +925,7 @@
 
   (tz-setup)
   (setq ce nil  cd nil  cl nil  froze nil  txt-lyrs-frozen nil
-        hpg-save (getvar "HPGAPTOL")
-        hpb-save nil
-        hpn-save nil)
+        hpg-save (getvar "HPGAPTOL"))
 
   ;; ── Session setup dialog ────────────────────────────────────────────────────
   ;; Globals persist between runs; dialog pre-fills with previous values
@@ -1049,8 +940,7 @@
                  "  |  Gap tol " (rtos gap-tol 2 1) "\""
                  "  |  CZ " *TZ-CLIMATE-ZONE*
                  "  |  North " (rtos *TZ-NORTH-ANGLE* 2 1) (chr 176)))
-  (princ "\n[T24] Make sure the room is visible on screen before clicking.")
-  (princ "\n[T24] Click room name text for each zone. Enter when done.")
+  (princ "\n[T24] Now click room name text for each zone. Press Enter when done.")
 
   ;; ── Main room loop ────────────────────────────────────────────────────────
   (while
@@ -1128,49 +1018,133 @@
         (princ (strcat "\n[TIME] Text search: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (princ (strcat "\n[T24] Click point: " (rtos (car txt-pt) 2 2) ", " (rtos (cadr txt-pt) 2 2)))
 
-        ;; ── Freeze text layer so hatch doesn't see text geometry ──
+        ;; ── Freeze text layers + door layers before BOUNDARY ──────────────
         (setq ce (getvar "CMDECHO")
               cd (getvar "CMDDIA")
               cl (getvar "CLAYER"))
         (setvar "CMDECHO" 0)
         (setvar "CMDDIA"  0)
+        (setvar "CLAYER"  *TZ-LYR-ZONE*)
 
+        ;; Freeze the clicked text layer before BOUNDARY so text geometry doesn't
+        ;; interfere with boundary detection. Thawed per-room after cleanup below.
         (if txt-lyr
           (progn
+            (princ (strcat "\n[T24] Freezing layer: " txt-lyr))
             (tz-freeze-layer txt-lyr)
+            ;; Track for error-handler cleanup in case user cancels mid-room
             (if (not (member txt-lyr txt-lyrs-frozen))
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
-        ;; ── Launch BOUNDARY tool magically ──
-        (setq last-ent (entlast))
-        (setvar "CLAYER" *TZ-LYR-ZONE*)
-        (princ "\n[T24] >>> Generating boundary automatically... <<<")
-        
-        ;; Use the robust built-in boundary function!
-        (setq ent (tz-hatch-boundary txt-pt gap-tol))
+        ;; ── Run boundary ──
+        (princ "\n[T24] Running HATCH boundary...")
+        (setq *tz-t0* (getvar "MILLISECS"))
+        (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
+        (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
+        (if ent
+          (princ "\n[T24] Boundary created.")
+          (princ "\n[T24] Boundary returned nil."))
 
-        (setvar "CMDECHO" 0)
-        (setvar "CMDDIA" 0)
+        ;; If failed, let user retry, patch gaps, or fall back
+        (setq patch-lines '())
+        (while (and (null ent)
+                    (progn
+                      (princ "\n[T24] BOUNDARY failed at that point.")
+                      (setq choice (tz-boundary-popup))
+                      (and choice  ;; nil = Cancel → exit loop
+                           (or (= choice "Retry") (= choice "Patch")))))
 
-        ;; Thaw text layer immediately
-        (if txt-lyr (tz-thaw-layer txt-lyr))
+          (if (= choice "Patch")
+            ;; ── Patch mode: draw lines to seal gaps, then auto-retry ──
+            (progn
+              (princ "\n[T24]   Draw lines to seal gaps. Click pairs of points, Enter when done.")
+              (while
+                (progn
+                  (setq pp1 (getpoint "\n[T24]   Line start (Enter to finish patching): "))
+                  (not (null pp1)))
+                (setq pp2 (getpoint pp1 "\n[T24]   Line end: "))
+                (if pp2
+                  (progn
+                    (tz-make-line pp1 pp2)
+                    (setq patch-lines (cons (entlast) patch-lines))
+                    (princ "\n[T24]   Patch line drawn."))
+                  (princ "\n[T24]   No endpoint, skipped.")))
+              (if patch-lines
+                (progn
+                  (princ (strcat "\n[T24]   " (itoa (length patch-lines))
+                                 " patch line(s). Retrying..."))
+                  (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol)))
+                (princ "\n[T24]   No lines drawn.")))
+
+            ;; ── Retry mode: pick a new point, try full gap tolerance range ──
+            (progn
+              (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
+              (if txt-pt
+                (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
+                (princ "\n[T24]   No point picked."))))
+
+          ) ;; end while
+
+        ;; Clean up temporary lines after boundary succeeds or user moves on
+        (foreach pent patch-lines (entdel pent))
+        (if patch-lines
+          (princ (strcat "\n[T24]   Cleaned up " (itoa (length patch-lines)) " patch line(s).")))
 
         (setvar "CMDDIA"  cd)
         (setvar "CMDECHO" ce)
         (setvar "CLAYER"  cl)
 
-        (if ent
-          (princ (strcat "\n[T24] Boundary found (" (rtos (tz-zone-area-sqft ent) 2 1) " sqft)"))
-          (princ "\n[T24] No boundary created, skipping this zone."))
+        ;; ── Manual fallback if BOUNDARY never succeeded ──────────────────
+        (if (null ent)
+          (cond
+            ((null choice)
+             (princ "\n[T24] Cancelled, skipping this zone."))
+            ((= choice "Select")
+             (progn
+               (princ "\n[T24] Select an existing closed polyline: ")
+               (setq sel2 (entsel))
+               (if (null sel2) (progn (princ "\n[T24] Cancelled.") (setq choice nil)))
+               (if sel2
+                 (progn
+                   (setq ent (car sel2))
+                   (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
+                     (progn (princ "\n[T24] Not a polyline, skipping.") (setq ent nil)))))))
+            ((= choice "Rect")
+             (setq ent (tz-pick-rectangle)))
+            (T  ;; "Manual" — pick corners
+             (setq ent (tz-pick-corners)))))
 
         (if ent
           (progn
+            ;; Collapse door notches (arc + tiny segs + door panel)
             (setq *tz-t0* (getvar "MILLISECS"))
+            (tz-door-collapse ent)
+            (princ (strcat "\n[TIME] Door collapse: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
 
-            ;; Compute area and centroid (works for HATCH or LWPOLYLINE)
-            (setq area-ft  (tz-zone-area-sqft ent)
-                  pts      (tz-zone-get-pts ent)
-                  centroid (if pts (tz-centroid pts) (list (car txt-pt) (cadr txt-pt) 0.0))
+            ;; Merge collinear segments (BOUNDARY splits straight walls)
+            (setq *tz-t0* (getvar "MILLISECS"))
+            (tz-merge-collinear ent)
+            (princ (strcat "\n[TIME] Merge collinear: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
+
+            ;; Shape simplification (set by TZ-ZONE1/2/3, nil for normal TZ-ZONE)
+            (if *TZ-SHAPE-MODE*
+              (progn
+                (setq *tz-t0* (getvar "MILLISECS"))
+                (tz-shape-simplify ent *TZ-SHAPE-MODE*)
+                (princ (strcat "\n[TIME] Shape simplify: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))))
+
+            ;; Finalize: layer, area, xdata, label, reactor
+            (setq *tz-t0* (getvar "MILLISECS"))
+            ;; Move to T24-ZONE layer if BOUNDARY put it elsewhere
+            (setq edata (entget ent))
+            (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
+              (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 edata) edata)))
+
+            ;; Compute area and centroid
+            (setq pts      (tz-get-pts ent)
+                  area-ft  (/ (vlax-curve-getarea (vlax-ename->vla-object ent))
+                              (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
+                  centroid (tz-centroid pts)
                   zone-id  (tz-next-zone-id))
 
             ;; Store XDATA
@@ -1468,13 +1442,13 @@
 (defun tz-nearest-edge (pt / ss i ent pts n j p1 p2
                             best-ent best-p1 best-p2 best-idx best-dist
                             dx dy seg-len t0 cx cy d)
-  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>"))))
+  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
   (if (null ss) nil
     (progn
       (setq best-dist 1e20  best-ent nil  i 0)
       (repeat (sslength ss)
         (setq ent (ssname ss i)
-              pts (tz-zone-get-pts ent)
+              pts (tz-get-pts ent)
               n   (length pts)
               j   0)
         (repeat n
@@ -1755,7 +1729,7 @@
        (if edge-info
          (progn
            (setq ent (nth 0 edge-info)
-                 pts (tz-zone-get-pts ent)
+                 pts (tz-get-pts ent)
                  centroid (tz-centroid pts))
            (setq min-x (apply 'min (mapcar 'car pts))
                  max-x (apply 'max (mapcar 'car pts))
@@ -1795,7 +1769,7 @@
          (princ "\n[T24] No T24-ZONE polylines found.")
          (progn
            (setq ent (nth 0 edge-info)
-                 pts (tz-zone-get-pts ent)
+                 pts (tz-get-pts ent)
                  zone-id (tz-zone-of-ent ent)
                  centroid (tz-centroid pts))
            (if (null zone-id) (setq zone-id "Z-???"))
@@ -1911,7 +1885,7 @@
 (defun c:TZ-LISTDATA ( / ss ss-w ss-o i j k ent xd zid
                           ent2 xd2 wid
                           ent3 xd3 opzid opwid)
-  (setq ss   (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>")))
+  (setq ss   (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE")))
         ss-w (ssget "X" (list (cons 8 *TZ-LYR-WALL*) '(0 . "CIRCLE"))))
   (princ "\n")
   (princ "\n========== T24 DATA ==========")
@@ -1927,7 +1901,8 @@
             (setq zid (tz-xd-nth xd 1000 1))
             (princ (strcat "\n ZONE " zid
                            "  \"" (tz-xd-nth xd 1000 2) "\""
-                           "  " (rtos (tz-zone-area-sqft ent) 2 1) " sqft"
+                           "  " (rtos (/ (vlax-curve-getarea (vlax-ename->vla-object ent))
+                                         (* *TZ-UNIT-FT* *TZ-UNIT-FT*)) 2 1) " sqft"
                            "  " (rtos (tz-xd-num xd 1040 0 9.0) 2 1) "' clg"
                            "  Fl " (itoa (fix (tz-xd-num xd 1070 0 1)))))
             ;; ── Walls under this zone, with openings nested ──
@@ -2051,7 +2026,7 @@
   (princ "\n=== T24 Validation ===")
 
   ;; Gather zone IDs and vertices
-  (setq ss-z (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>"))))
+  (setq ss-z (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
   (if (null ss-z)
     (progn (princ "\n  ERROR: No zones found.") (setq problems (1+ problems)))
     (progn
@@ -2063,7 +2038,7 @@
           (progn
             (setq zid (tz-xd-nth xd 1000 1))
             (setq zone-ids (cons zid zone-ids))
-            (setq all-zone-pts (cons (cons zid (tz-zone-get-pts ent)) all-zone-pts))))
+            (setq all-zone-pts (cons (cons zid (tz-get-pts ent)) all-zone-pts))))
         (setq i (1+ i)))
       (princ (strcat "\n  Zones: " (itoa (length zone-ids))))
 
@@ -2226,7 +2201,7 @@
       (cons 1000 occ)))
 
   ;; Delete old label text near this zone's centroid
-  (setq pts      (tz-zone-get-pts ent)
+  (setq pts      (tz-get-pts ent)
         centroid (tz-centroid pts))
   (setq ss-lbl (ssget "X" (list (cons 8 *TZ-LYR-LABEL*) '(0 . "TEXT"))))
   (if ss-lbl
@@ -2298,7 +2273,7 @@
   (write-line "  \"zones\": [" fp)
 
   ;; ── Zones ────────────────────────────────────────────────────────────────
-  (setq ss           (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>")))
+  (setq ss           (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE")))
         zone-started nil
         n-zones      0)
 
@@ -2312,7 +2287,7 @@
                  (tz-ent-visible-p ent))
           (progn
             (setq obj       (vlax-ename->vla-object ent)
-                  pts       (tz-zone-get-pts ent)
+                  pts       (tz-get-pts ent)
                   area-sqft (/ (vlax-curve-getarea obj)
                                (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
                   cent      (tz-centroid pts)
@@ -2516,8 +2491,9 @@
                 fl    (fix (tz-xd-num xd 1070 0 1)))
           ;; Recalculate area from geometry
           (setq obj     (vlax-ename->vla-object ent)
-                area-ft (tz-zone-area-sqft ent)
-                pts     (tz-zone-get-pts ent)
+                area-ft (/ (vlax-curve-getarea obj)
+                           (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
+                pts     (tz-get-pts ent)
                 centroid (tz-centroid pts))
           ;; Find THIS zone's detail label by matching zone-id in XDATA
           (setq ss (ssget "X" (list (cons 8 *TZ-LYR-LABEL*) '(0 . "TEXT"))))
@@ -2552,7 +2528,7 @@
           (vlr-remove r)))
       (setq *TZ-REACTORS* nil)))
   ;; Find all zone polylines
-  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>"))))
+  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
   (if (null ss)
     (progn (princ "\n[T24] No zone polylines found.") (princ))
     (progn
@@ -2690,7 +2666,7 @@
 
 ;; Dispatcher: apply shape simplification mode to a polyline entity
 (defun tz-shape-simplify (ent mode / pts new-pts obj n-before n-after label)
-  (setq pts (tz-zone-get-pts ent)
+  (setq pts (tz-get-pts ent)
         n-before (length pts))
   (cond
     ((= mode 1)  ; Convex hull
