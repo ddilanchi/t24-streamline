@@ -2735,8 +2735,8 @@
   (setq src-pts  (tz-get-pts src-ent)
         src-cht  (tz-xd-num src-xd 1040 0 9.0)
         src-fl   (fix (tz-xd-num src-xd 1070 0 1))
-        src-cond (or (tz-xd-nth src-xd 1000 3) "Conditioned")
-        src-occ  (or (tz-xd-nth src-xd 1000 4) "Nonresidential"))
+        src-cond (if (tz-xd-nth src-xd 1000 3) (tz-xd-nth src-xd 1000 3) "Conditioned")
+        src-occ  (if (tz-xd-nth src-xd 1000 4) (tz-xd-nth src-xd 1000 4) "Nonresidential"))
 
   (princ (strcat "\n[ZCOPY] Source: " (tz-xd-nth src-xd 1000 2)
                  " (" (itoa (length src-pts)) " verts, "
