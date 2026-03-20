@@ -1694,131 +1694,95 @@
   (list (- (* x ca) (* y sa))
         (+ (* x sa) (* y ca))))
 
-;; Get the 8-direction side and wall length for a point relative to a zone.
-;; Uses *TZ-NORTH-ANGLE* to rotate the projection axes.
-;; Returns (side-name len-in az p1 p2 pv1 pv2 mid-pt) or nil.
-(defun tz-wside-calc (pts centroid click-pt dim-off
-                      / na-rad rpts rdx rdy diag-rad rpts45
-                        ext-x ext-y ext-45x ext-45y
-                        side len-in az p1 p2 pv1 pv2 mid-pt
-                        rx1 rx2 ry1 ry2 r45x1 r45x2 r45y1 r45y2
-                        cx cy inv-ang)
-  (setq na-rad (* (/ pi 180.0) (if *TZ-NORTH-ANGLE* *TZ-NORTH-ANGLE* 0.0))
-        inv-ang (- na-rad)
+;; Compute wall side data for a click point relative to a zone.
+;; wall-ang-offset = additional rotation for angled wings (degrees, default 0).
+;; Returns (side-label len-in az p1 p2 pv1 pv2 mid-pt).
+;; 4 sides only, rotated by wall-ang-offset. Azimuth = north-corrected, snapped to cardinal.
+(defun tz-wside-calc (pts centroid click-pt dim-off wall-ang-offset
+                      / rot-rad rpts rdx rdy
+                        rx1 rx2 ry1 ry2 ext-x ext-y
+                        side len-in raw-az az
+                        p1 p2 pv1 pv2 mid-pt cx cy)
+  (setq rot-rad (* (/ pi 180.0) wall-ang-offset)
         cx (car centroid) cy (cadr centroid))
 
-  ;; Rotate all points so true north aligns with +Y
-  (setq rpts (mapcar '(lambda (p) (tz-rot-pt (list (- (car p) cx) (- (cadr p) cy)) inv-ang)) pts))
+  ;; Rotate all points by -wall-ang-offset so the angled walls align with X/Y
+  (setq rpts (mapcar '(lambda (p)
+    (tz-rot-pt (list (- (car p) cx) (- (cadr p) cy)) (- rot-rad))) pts))
 
-  ;; Rotated bounding box extents (N/S/E/W widths)
+  ;; Bounding box in rotated space
   (setq rx1 (apply 'min (mapcar 'car rpts))
         rx2 (apply 'max (mapcar 'car rpts))
         ry1 (apply 'min (mapcar 'cadr rpts))
         ry2 (apply 'max (mapcar 'cadr rpts))
-        ext-x (- rx2 rx1)    ;; N/S wall width
-        ext-y (- ry2 ry1))   ;; E/W wall width
+        ext-x (- rx2 rx1)
+        ext-y (- ry2 ry1))
 
-  ;; Rotate 45 more for diagonal extents (NE/SW, NW/SE)
-  (setq diag-rad (* (/ pi 180.0) 45.0)
-        rpts45 (mapcar '(lambda (p) (tz-rot-pt p diag-rad)) rpts))
-  (setq r45x1 (apply 'min (mapcar 'car rpts45))
-        r45x2 (apply 'max (mapcar 'car rpts45))
-        r45y1 (apply 'min (mapcar 'cadr rpts45))
-        r45y2 (apply 'max (mapcar 'cadr rpts45))
-        ext-45x (- r45x2 r45x1)   ;; NE/SW wall width
-        ext-45y (- r45y2 r45y1))   ;; NW/SE wall width
+  ;; Which side is the click on? (in rotated space)
+  (setq rdx (car (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) (- rot-rad)))
+        rdy (cadr (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) (- rot-rad))))
 
-  ;; Determine which side the click is on (in rotated space)
-  (setq rdx (car (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) inv-ang))
-        rdy (cadr (tz-rot-pt (list (- (car click-pt) cx) (- (cadr click-pt) cy)) inv-ang)))
+  (if (> (abs rdx) (abs rdy))
+    (if (> rdx 0) (setq side "R") (setq side "L"))
+    (if (> rdy 0) (setq side "T") (setq side "B")))
 
-  ;; Check 8 directions: compare rotated dx/dy to determine octant
+  ;; Wall length and raw azimuth (in rotated space, 0=up=+Y)
   (cond
-    ;; Primary axes (N/S/E/W)
-    ((and (> rdy 0) (> (abs rdy) (* 2.414 (abs rdx))))   ;; N (within ~22.5 deg)
-     (setq side "N"  len-in ext-x  az 0.0))
-    ((and (< rdy 0) (> (abs rdy) (* 2.414 (abs rdx))))   ;; S
-     (setq side "S"  len-in ext-x  az 180.0))
-    ((and (> rdx 0) (> (abs rdx) (* 2.414 (abs rdy))))   ;; E
-     (setq side "E"  len-in ext-y  az 90.0))
-    ((and (< rdx 0) (> (abs rdx) (* 2.414 (abs rdy))))   ;; W
-     (setq side "W"  len-in ext-y  az 270.0))
-    ;; Diagonals
-    ((and (> rdx 0) (> rdy 0))  (setq side "NE"  len-in ext-45y  az 45.0))
-    ((and (> rdx 0) (< rdy 0))  (setq side "SE"  len-in ext-45x  az 135.0))
-    ((and (< rdx 0) (< rdy 0))  (setq side "SW"  len-in ext-45y  az 225.0))
-    ((and (< rdx 0) (> rdy 0))  (setq side "NW"  len-in ext-45x  az 315.0))
-    (T (setq side "N"  len-in ext-x  az 0.0)))
-
-  ;; Compute wall line endpoints and preview line in world space.
-  ;; Wall line sits on the zone edge, offset by dim-off.
-  ;; Build in rotated space, then rotate back to world.
-  (cond
-    ((= side "N")
-     (setq p1 (list rx1 ry2) p2 (list rx2 ry2)
+    ((= side "T")  ;; top side
+     (setq len-in ext-x  raw-az 0.0
+           p1 (list rx1 ry2) p2 (list rx2 ry2)
            pv1 (list rx1 (+ ry2 dim-off)) pv2 (list rx2 (+ ry2 dim-off))
            mid-pt (list (* 0.5 (+ rx1 rx2)) ry2)))
-    ((= side "S")
-     (setq p1 (list rx1 ry1) p2 (list rx2 ry1)
+    ((= side "B")  ;; bottom side
+     (setq len-in ext-x  raw-az 180.0
+           p1 (list rx1 ry1) p2 (list rx2 ry1)
            pv1 (list rx1 (- ry1 dim-off)) pv2 (list rx2 (- ry1 dim-off))
            mid-pt (list (* 0.5 (+ rx1 rx2)) ry1)))
-    ((= side "E")
-     (setq p1 (list rx2 ry1) p2 (list rx2 ry2)
+    ((= side "R")  ;; right side
+     (setq len-in ext-y  raw-az 90.0
+           p1 (list rx2 ry1) p2 (list rx2 ry2)
            pv1 (list (+ rx2 dim-off) ry1) pv2 (list (+ rx2 dim-off) ry2)
            mid-pt (list rx2 (* 0.5 (+ ry1 ry2)))))
-    ((= side "W")
-     (setq p1 (list rx1 ry1) p2 (list rx1 ry2)
+    ((= side "L")  ;; left side
+     (setq len-in ext-y  raw-az 270.0
+           p1 (list rx1 ry1) p2 (list rx1 ry2)
            pv1 (list (- rx1 dim-off) ry1) pv2 (list (- rx1 dim-off) ry2)
-           mid-pt (list rx1 (* 0.5 (+ ry1 ry2)))))
-    ;; Diagonals: use 45-rotated bounding box
-    ((= side "NE")
-     (setq p1 (list r45x1 r45y2) p2 (list r45x2 r45y2)
-           pv1 (list r45x1 (+ r45y2 dim-off)) pv2 (list r45x2 (+ r45y2 dim-off))
-           mid-pt (list (* 0.5 (+ r45x1 r45x2)) r45y2)))
-    ((= side "SE")
-     (setq p1 (list r45x2 r45y1) p2 (list r45x2 r45y2)
-           pv1 (list (+ r45x2 dim-off) r45y1) pv2 (list (+ r45x2 dim-off) r45y2)
-           mid-pt (list r45x2 (* 0.5 (+ r45y1 r45y2)))))
-    ((= side "SW")
-     (setq p1 (list r45x1 r45y1) p2 (list r45x2 r45y1)
-           pv1 (list r45x1 (- r45y1 dim-off)) pv2 (list r45x2 (- r45y1 dim-off))
-           mid-pt (list (* 0.5 (+ r45x1 r45x2)) r45y1)))
-    ((= side "NW")
-     (setq p1 (list r45x1 r45y1) p2 (list r45x1 r45y2)
-           pv1 (list (- r45x1 dim-off) r45y1) pv2 (list (- r45x1 dim-off) r45y2)
-           mid-pt (list r45x1 (* 0.5 (+ r45y1 r45y2))))))
+           mid-pt (list rx1 (* 0.5 (+ ry1 ry2))))))
 
-  ;; Rotate points back to world space (for diagonals, undo the extra 45 first)
-  (if (member side '("NE" "SE" "SW" "NW"))
-    (progn
-      ;; Undo 45-degree rotation, then undo north rotation
-      (setq p1 (tz-rot-pt (tz-rot-pt p1 (- diag-rad)) na-rad)
-            p2 (tz-rot-pt (tz-rot-pt p2 (- diag-rad)) na-rad)
-            pv1 (tz-rot-pt (tz-rot-pt pv1 (- diag-rad)) na-rad)
-            pv2 (tz-rot-pt (tz-rot-pt pv2 (- diag-rad)) na-rad)
-            mid-pt (tz-rot-pt (tz-rot-pt mid-pt (- diag-rad)) na-rad)))
-    (progn
-      ;; Just undo north rotation
-      (setq p1 (tz-rot-pt p1 na-rad)
-            p2 (tz-rot-pt p2 na-rad)
-            pv1 (tz-rot-pt pv1 na-rad)
-            pv2 (tz-rot-pt pv2 na-rad)
-            mid-pt (tz-rot-pt mid-pt na-rad))))
+  ;; Rotate all points back to world space
+  (setq p1 (tz-rot-pt p1 rot-rad)
+        p2 (tz-rot-pt p2 rot-rad)
+        pv1 (tz-rot-pt pv1 rot-rad)
+        pv2 (tz-rot-pt pv2 rot-rad)
+        mid-pt (tz-rot-pt mid-pt rot-rad))
 
-  ;; Translate back from centroid-relative to world
+  ;; Translate back to world
   (setq p1 (list (+ (car p1) cx) (+ (cadr p1) cy))
         p2 (list (+ (car p2) cx) (+ (cadr p2) cy))
         pv1 (list (+ (car pv1) cx) (+ (cadr pv1) cy) 0.0)
         pv2 (list (+ (car pv2) cx) (+ (cadr pv2) cy) 0.0)
         mid-pt (list (+ (car mid-pt) cx) (+ (cadr mid-pt) cy) 0.0))
 
-  ;; Apply north arrow correction to azimuth
-  (setq az (rem (+ az (if *TZ-NORTH-ANGLE* *TZ-NORTH-ANGLE* 0.0) 360.0) 360.0))
+  ;; Compute final azimuth:
+  ;; raw_az is relative to rotated space. Add wall-ang-offset to get AutoCAD angle.
+  ;; Then subtract north arrow to get true azimuth. Then snap to nearest cardinal.
+  (setq az (rem (+ raw-az wall-ang-offset
+                   (if *TZ-NORTH-ANGLE* (- *TZ-NORTH-ANGLE*) 0.0)
+                   720.0) 360.0))
+  ;; Snap to nearest cardinal (0, 45, 90, 135, 180, 225, 270, 315)
+  (setq az (* 45.0 (fix (+ (/ az 45.0) 0.5))))
+  (if (>= az 360.0) (setq az (- az 360.0)))
+
+  ;; Label side with snapped cardinal name
+  (setq side (cond
+    ((= az 0.0) "N") ((= az 45.0) "NE") ((= az 90.0) "E") ((= az 135.0) "SE")
+    ((= az 180.0) "S") ((= az 225.0) "SW") ((= az 270.0) "W") ((= az 315.0) "NW")
+    (T "N")))
 
   (list side len-in az p1 p2 pv1 pv2 mid-pt))
 
 (defun c:TZ-WSIDE ( / edge-info ent pts zone-id centroid
-                      wall-ht label-ht type-choice wall-type
+                      wall-ht label-ht wall-type wall-ang
                       click-pt side len-in
                       len-ft az p1 p2 mid-pt
                       wall-id area-sqft marker lsave
@@ -1829,7 +1793,7 @@
   (setq lsave (getvar "CLAYER"))
   (defun *error* (msg)
     (if lsave (setvar "CLAYER" lsave))
-    (redraw)  ; clear any grdraw previews
+    (redraw)
     (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
       (princ (strcat "\n[T24] Error: " msg)))
     (princ))
@@ -1838,17 +1802,16 @@
   (setq wall-ht (getreal "\n[T24] Wall height (ft) <9>: "))
   (if (null wall-ht) (setq wall-ht 9.0))
 
-  (setq label-ht 6.0)
+  (setq wall-ang (getreal "\n[T24] Wall angle offset (deg, 0=axis-aligned) <0>: "))
+  (if (null wall-ang) (setq wall-ang 0.0))
 
-  (initget "Exterior Interior")
-  (setq type-choice (getkword "\n[T24] E = Exterior, I = Interior <E>: "))
-  (if (or (null type-choice) (= type-choice "Exterior"))
-    (setq wall-type "Exterior Wall")
-    (setq wall-type "Interior Wall"))
+  (setq label-ht 6.0
+        wall-type "Exterior Wall")
 
-  (princ (strcat "\n[T24] " wall-type ", " (rtos wall-ht 2 1) "' height."))
-  (princ "\n[T24] Move mouse near zone sides — preview shows which wall.")
-  (princ "\n[T24] Click to place, U to undo last, Enter/Esc to finish.")
+  (princ (strcat "\n[T24] " wall-type ", " (rtos wall-ht 2 1) "' height"
+                 (if (/= wall-ang 0.0) (strcat ", angle " (rtos wall-ang 2 1) (chr 176)) "")
+                 "."))
+  (princ "\n[T24] Move mouse near zone sides. Click to place, U to undo, Enter to finish.")
 
   ;; ── grread loop — live preview as mouse moves, place on click ─────────────
   (setq count 0  loop-on T  prev-side nil  prev-ent nil
@@ -1868,7 +1831,7 @@
            (setq ent (nth 0 edge-info)
                  pts (tz-get-pts ent)
                  centroid (tz-centroid pts)
-                 wdata (tz-wside-calc pts centroid gr-data dim-off)
+                 wdata (tz-wside-calc pts centroid gr-data dim-off wall-ang)
                  side (nth 0 wdata))
            (if (or (/= side prev-side) (not (equal ent prev-ent)))
              (progn
@@ -1890,7 +1853,7 @@
                  zone-id (tz-zone-of-ent ent)
                  centroid (tz-centroid pts))
            (if (null zone-id) (setq zone-id "Z-???"))
-           (setq wdata (tz-wside-calc pts centroid click-pt dim-off)
+           (setq wdata (tz-wside-calc pts centroid click-pt dim-off wall-ang)
                  side   (nth 0 wdata)
                  len-in (nth 1 wdata)
                  az     (nth 2 wdata)
