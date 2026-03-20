@@ -1117,8 +1117,9 @@
         (setvar "CLAYER" *TZ-LYR-ZONE*)
         (princ "\n[T24] >>> Click inside the room to hatch it. <<<")
 
-        ;; command-s allows interactive command completion (AutoCAD 2015+)
-        (command-s "_.HATCH")
+        ;; Launch HATCH (same as typing HATCH at command line)
+        ;; command-s suspends LISP until user finishes (AutoCAD 2015+)
+        (command-s "HATCH")
 
         ;; Thaw text layer
         (if txt-lyr (tz-thaw-layer txt-lyr))
