@@ -70,6 +70,21 @@
     (setq i (+ i 2)))
   pts)
 
+;; Get area from any zone entity (HATCH or LWPOLYLINE) in sqft
+(defun tz-zone-area-sqft (ent / etype obj)
+  (setq etype (cdr (assoc 0 (entget ent)))
+        obj   (vlax-ename->vla-object ent))
+  (/ (if (= etype "HATCH")
+       (vla-get-Area obj)
+       (vlax-curve-getarea obj))
+     (* *TZ-UNIT-FT* *TZ-UNIT-FT*)))
+
+;; Get vertices from any zone entity (HATCH or LWPOLYLINE)
+(defun tz-zone-get-pts (ent)
+  (if (= (cdr (assoc 0 (entget ent))) "HATCH")
+    (tz-hatch-get-pts ent)
+    (tz-get-pts ent)))
+
 ;; Average-of-vertices centroid (good enough for room shapes)
 (defun tz-centroid (pts / n sx sy)
   (setq n (length pts) sx 0.0 sy 0.0)
@@ -202,7 +217,7 @@
 (defun tz-next-zone-id ( / ss)
   (if (null *TZ-ZONE-COUNT*)
     (progn
-      (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
+      (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "LWPOLYLINE") '(0 . "HATCH") '(-4 . "OR>"))))
       (setq *TZ-ZONE-COUNT* (if ss (sslength ss) 0))))
   (setq *TZ-ZONE-COUNT* (1+ *TZ-ZONE-COUNT*))
   (strcat "Z-" (tz-pad (itoa *TZ-ZONE-COUNT*) 3)))
@@ -549,15 +564,86 @@
           i (1+ i)))
   (abs (/ sum 2.0)))
 
+;; Create hatch and KEEP it as the zone entity. Returns hatch ent or nil.
+;; Deletes any stray polylines/entities, keeps only the hatch.
+;; Set transparency so room fill is visible but not opaque.
+(defun tz-try-hatch-keep (pt gap-tol / old-gaptol old-hpbound old-hpname old-hpassoc
+                                       last-ent scan-ent all-new e
+                                       hatch-ent best-hatch best-area cur-area)
+  (setq old-gaptol  (getvar "HPGAPTOL")
+        old-hpbound (getvar "HPBOUNDRETAIN")
+        old-hpname  (getvar "HPNAME")
+        old-hpassoc (getvar "HPASSOC"))
+  (setvar "HPGAPTOL" gap-tol)
+  (setvar "HPBOUNDRETAIN" 0)
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
+  (setq last-ent (entlast)  best-hatch nil  best-area 0.0)
+
+  (command "_-HATCH" pt "")
+
+  (if (not (equal (entlast) last-ent))
+    (progn
+      (setq scan-ent (entnext last-ent)  all-new '())
+      (while scan-ent (setq all-new (cons scan-ent all-new)) (setq scan-ent (entnext scan-ent)))
+      ;; Find largest hatch by area
+      (foreach e all-new
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
+          (progn
+            (setq cur-area (vla-get-Area (vlax-ename->vla-object e)))
+            (if (> cur-area best-area)
+              (setq best-area cur-area  best-hatch e)))))
+      ;; Delete everything except the best hatch
+      (foreach e all-new
+        (if (not (equal e best-hatch)) (entdel e)))
+      ;; Move hatch to T24-ZONE layer and set transparency
+      (if best-hatch
+        (progn
+          (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget best-hatch)) (entget best-hatch)))
+          ;; Set color to layer color 6 (magenta) with transparency
+          (vla-put-Transparency (vlax-ename->vla-object best-hatch) 75)))))
+
+  (setvar "HPGAPTOL" old-gaptol)
+  (setvar "HPBOUNDRETAIN" old-hpbound)
+  (setvar "HPNAME" old-hpname)
+  (setvar "HPASSOC" old-hpassoc)
+  best-hatch)
+
+;; Get vertices from a HATCH entity's largest loop. Returns list of (x y).
+(defun tz-hatch-get-pts (ent / obj nloops i pts best-pts best-area
+                               loop-area j x y n verts bulges)
+  (setq obj (vlax-ename->vla-object ent)
+        nloops (vla-get-NumberOfLoops obj)
+        best-pts nil  best-area 0.0  i 0)
+  (repeat nloops
+    (setq loop-type nil)
+    (vla-GetLoopAt obj i 'verts 'bulges)
+    (if verts
+      (progn
+        (setq pts '()
+              n (/ (length (vlax-safearray->list (vlax-variant-value verts))) 2)
+              j 0)
+        (repeat n
+          (setq x (vlax-safearray-get-element (vlax-variant-value verts) (* 2 j))
+                y (vlax-safearray-get-element (vlax-variant-value verts) (1+ (* 2 j))))
+          (setq pts (append pts (list (list x y))))
+          (setq j (1+ j)))
+        (setq loop-area (tz-poly-area pts))
+        (if (> loop-area best-area)
+          (setq best-area loop-area  best-pts pts))))
+    (setq i (1+ i)))
+  best-pts)
+
 ;; Create hatch, extract loop as polyline, delete hatch. Returns polyline ent or nil.
-(defun tz-try-hatch-extract (pt gap-tol / old-gaptol old-hpname old-hpassoc
+(defun tz-try-hatch-extract (pt gap-tol / old-gaptol old-hpbound old-hpname old-hpassoc
                                           last-ent scan-ent all-new e
                                           hatch-ent pts elist p ent)
   (setq old-gaptol (getvar "HPGAPTOL")
+        old-hpbound (getvar "HPBOUNDRETAIN")
         old-hpname (getvar "HPNAME")
         old-hpassoc (getvar "HPASSOC"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 0)   ;; don't retain -- we extract ourselves
+  (setvar "HPBOUNDRETAIN" 1)   ;; retain so command finishes cleanly
   (setvar "HPNAME" "SOLID")
   (setvar "HPASSOC" 0)
   (setq last-ent (entlast)  hatch-ent nil  ent nil)
@@ -630,7 +716,28 @@
   (setvar "HPNAME" old-hpname) (setvar "HPASSOC" old-hpassoc)
   ent)
 
-;; Default boundary: hatch + extract loop as polyline. Progressive zoom.
+;; Hatch-keep boundary: create hatch, keep as zone entity. Progressive zoom.
+(defun tz-hatch-boundary-v4 (pt gap-tol / ent local-rad)
+  ;; Try 1: current zoom
+  (setq ent (tz-try-hatch-keep pt gap-tol))
+  ;; Try 2: local zoom
+  (if (null ent)
+    (progn
+      (setq local-rad 1200.0)
+      (command "_.ZOOM" "_Window"
+        (list (- (car pt) local-rad) (- (cadr pt) local-rad))
+        (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
+      (setq ent (tz-try-hatch-keep pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ;; Try 3: zoom extents
+  (if (null ent)
+    (progn
+      (command "_.ZOOM" "_Extents")
+      (setq ent (tz-try-hatch-keep pt gap-tol))
+      (command "_.ZOOM" "_Previous")))
+  ent)
+
+;; Polyline extract boundary (fallback). Progressive zoom.
 (defun tz-hatch-boundary-v2 (pt gap-tol / ent local-rad)
   ;; Try 1: current zoom
   (setq ent (tz-try-hatch-extract pt gap-tol))
@@ -1125,12 +1232,9 @@
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
         ;; ── Run boundary ──
-        (princ (strcat "\n[T24] Running "
-          (if (= *TZ-BOUNDARY-MODE* 3) "ROBUST" "HATCH") " boundary..."))
+        (princ "\n[T24] Running HATCH boundary...")
         (setq *tz-t0* (getvar "MILLISECS"))
-        (setq ent (if (= *TZ-BOUNDARY-MODE* 3)
-                    (tz-hatch-boundary-v3 txt-pt gap-tol)
-                    (tz-hatch-boundary-v2 txt-pt gap-tol)))
+        (setq ent (tz-hatch-boundary-v4 txt-pt gap-tol))
         (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (if ent
           (princ "\n[T24] Boundary created.")
@@ -1164,18 +1268,14 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (if (= *TZ-BOUNDARY-MODE* 3)
-                              (tz-hatch-boundary-v3 txt-pt gap-tol)
-                              (tz-hatch-boundary-v2 txt-pt gap-tol))))
+                  (setq ent (tz-hatch-boundary-v4 txt-pt gap-tol)))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (if (= *TZ-BOUNDARY-MODE* 3)
-                            (tz-hatch-boundary-v3 txt-pt gap-tol)
-                            (tz-hatch-boundary-v2 txt-pt gap-tol)))
+                (setq ent (tz-hatch-boundary-v4 txt-pt gap-tol))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
@@ -1211,38 +1311,16 @@
 
         (if ent
           (progn
-            ;; Collapse door notches (arc + tiny segs + door panel)
             (setq *tz-t0* (getvar "MILLISECS"))
-            (tz-door-collapse ent)
-            (princ (strcat "\n[TIME] Door collapse: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
 
-            ;; Merge collinear segments (BOUNDARY splits straight walls)
-            (setq *tz-t0* (getvar "MILLISECS"))
-            (tz-merge-collinear ent)
-            (princ (strcat "\n[TIME] Merge collinear: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
-
-            ;; Shape simplification (set by TZ-ZONE1/2/3, nil for normal TZ-ZONE)
-            (if *TZ-SHAPE-MODE*
-              (progn
-                (setq *tz-t0* (getvar "MILLISECS"))
-                (tz-shape-simplify ent *TZ-SHAPE-MODE*)
-                (princ (strcat "\n[TIME] Shape simplify: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))))
-
-            ;; Finalize: layer, area, xdata, label, reactor
-            (setq *tz-t0* (getvar "MILLISECS"))
-            ;; Move to T24-ZONE layer if BOUNDARY put it elsewhere
-            (setq edata (entget ent))
-            (if (/= (cdr (assoc 8 edata)) *TZ-LYR-ZONE*)
-              (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 edata) edata)))
-
-            ;; Compute area and centroid
-            (setq pts      (tz-get-pts ent)
-                  area-ft  (/ (vlax-curve-getarea (vlax-ename->vla-object ent))
+            ;; Get area and vertices from hatch
+            (setq area-ft  (/ (vla-get-Area (vlax-ename->vla-object ent))
                               (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
-                  centroid (tz-centroid pts)
+                  pts      (tz-hatch-get-pts ent)
+                  centroid (if pts (tz-centroid pts) (list (car txt-pt) (cadr txt-pt) 0.0))
                   zone-id  (tz-next-zone-id))
 
-            ;; Store XDATA
+            ;; Store XDATA on the hatch entity
             (tz-set-xdata ent
               (list *TZ-APP*
                 (cons 1000 "ZONE")
@@ -1253,10 +1331,10 @@
                 (cons 1000 condition)
                 (cons 1000 occupancy)))
 
-            ;; Visual label — use txt-pt (click point, inside the room)
+            ;; Visual label
             (tz-zone-label txt-pt zone-name area-ft ceil-ht floor zone-id)
 
-            ;; Attach object reactor for dynamic area updates
+            ;; Attach reactor for area updates
             (setq *TZ-REACTORS*
               (cons (vlr-object-reactor
                       (list (vlax-ename->vla-object ent))
@@ -1537,7 +1615,7 @@
 (defun tz-nearest-edge (pt / ss i ent pts n j p1 p2
                             best-ent best-p1 best-p2 best-idx best-dist
                             dx dy seg-len t0 cx cy d)
-  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
+  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "LWPOLYLINE") '(0 . "HATCH") '(-4 . "OR>"))))
   (if (null ss) nil
     (progn
       (setq best-dist 1e20  best-ent nil  i 0)
@@ -1980,7 +2058,7 @@
 (defun c:TZ-LISTDATA ( / ss ss-w ss-o i j k ent xd zid
                           ent2 xd2 wid
                           ent3 xd3 opzid opwid)
-  (setq ss   (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE")))
+  (setq ss   (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "LWPOLYLINE") '(0 . "HATCH") '(-4 . "OR>")))
         ss-w (ssget "X" (list (cons 8 *TZ-LYR-WALL*) '(0 . "CIRCLE"))))
   (princ "\n")
   (princ "\n========== T24 DATA ==========")
@@ -2121,7 +2199,7 @@
   (princ "\n=== T24 Validation ===")
 
   ;; Gather zone IDs and vertices
-  (setq ss-z (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
+  (setq ss-z (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "LWPOLYLINE") '(0 . "HATCH") '(-4 . "OR>"))))
   (if (null ss-z)
     (progn (princ "\n  ERROR: No zones found.") (setq problems (1+ problems)))
     (progn
@@ -2368,7 +2446,7 @@
   (write-line "  \"zones\": [" fp)
 
   ;; ── Zones ────────────────────────────────────────────────────────────────
-  (setq ss           (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE")))
+  (setq ss           (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "LWPOLYLINE") '(0 . "HATCH") '(-4 . "OR>")))
         zone-started nil
         n-zones      0)
 
@@ -2623,7 +2701,7 @@
           (vlr-remove r)))
       (setq *TZ-REACTORS* nil)))
   ;; Find all zone polylines
-  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(0 . "LWPOLYLINE"))))
+  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "LWPOLYLINE") '(0 . "HATCH") '(-4 . "OR>"))))
   (if (null ss)
     (progn (princ "\n[T24] No zone polylines found.") (princ))
     (progn
