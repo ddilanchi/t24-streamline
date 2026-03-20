@@ -529,9 +529,12 @@
   (setq last-ent (entlast))
 
   ;; Simple hatch: pick internal point, press Enter to finish
+  (setq *tz-t1* (getvar "MILLISECS"))
   (command "_-HATCH" pt "")
+  (princ (strcat "\n[TIME]     _-HATCH cmd: " (itoa (- (getvar "MILLISECS") *tz-t1*)) "ms"))
 
   ;; Collect all new entities, find largest polyline, delete rest
+  (setq *tz-t1* (getvar "MILLISECS"))
   (if (not (equal (entlast) last-ent))
     (progn
       (setq scan-ent (entnext last-ent)  ent nil  best-area 0.0  all-new '())
@@ -549,6 +552,8 @@
       (foreach e all-new
         (if (not (equal e ent)) (entdel e)))))
 
+  (princ (strcat "\n[TIME]     entity cleanup: " (itoa (- (getvar "MILLISECS") *tz-t1*)) "ms"))
+
   ;; Restore sysvars
   (setvar "HPGAPTOL" old-gaptol)
   (setvar "HPBOUNDRETAIN" old-hpbound)
@@ -557,10 +562,16 @@
   ent)
 
 ;; Hatch-based boundary: zoom extents, try once, zoom back
-(defun tz-hatch-boundary-v2 (pt gap-tol / ent)
+(defun tz-hatch-boundary-v2 (pt gap-tol / ent t1)
+  (setq t1 (getvar "MILLISECS"))
   (command "_.ZOOM" "_Extents")
+  (princ (strcat "\n[TIME]   zoom extents: " (itoa (- (getvar "MILLISECS") t1)) "ms"))
+  (setq t1 (getvar "MILLISECS"))
   (setq ent (tz-try-hatch-boundary pt gap-tol))
+  (princ (strcat "\n[TIME]   hatch+cleanup: " (itoa (- (getvar "MILLISECS") t1)) "ms"))
+  (setq t1 (getvar "MILLISECS"))
   (command "_.ZOOM" "_Previous")
+  (princ (strcat "\n[TIME]   zoom previous: " (itoa (- (getvar "MILLISECS") t1)) "ms"))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -1020,6 +1031,7 @@
         (princ (strcat "\n[T24] Click point: " (rtos (car txt-pt) 2 2) ", " (rtos (cadr txt-pt) 2 2)))
 
         ;; ── Freeze text layers + door layers before BOUNDARY ──────────────
+        (setq *tz-t0* (getvar "MILLISECS"))
         (setq ce (getvar "CMDECHO")
               cd (getvar "CMDDIA")
               cl (getvar "CLAYER"))
@@ -1027,15 +1039,12 @@
         (setvar "CMDDIA"  0)
         (setvar "CLAYER"  *TZ-LYR-ZONE*)
 
-        ;; Freeze the clicked text layer before BOUNDARY so text geometry doesn't
-        ;; interfere with boundary detection. Thawed per-room after cleanup below.
         (if txt-lyr
           (progn
-            (princ (strcat "\n[T24] Freezing layer: " txt-lyr))
             (tz-freeze-layer txt-lyr)
-            ;; Track for error-handler cleanup in case user cancels mid-room
             (if (not (member txt-lyr txt-lyrs-frozen))
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
+        (princ (strcat "\n[TIME] Layer setup: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
 
         ;; ── Run boundary ──
         (princ "\n[T24] Running HATCH boundary...")
@@ -1175,12 +1184,10 @@
                            "\"  " (rtos area-ft 2 1) " sqft  Floor " (itoa floor))))
           (princ "\n[T24] No boundary created, skipping this zone."))
         ;; Thaw the text layer per-room (whether boundary succeeded or not)
-        (if txt-lyr
-          (progn
-            (princ (strcat "\n[T24] Thawing layer: " txt-lyr))
-            (tz-thaw-layer txt-lyr)))
-        ;; End undo group for this zone
+        (setq *tz-t0* (getvar "MILLISECS"))
+        (if txt-lyr (tz-thaw-layer txt-lyr))
         (command "_.UNDO" "_End")
+        (princ (strcat "\n[TIME] Thaw+undo: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
             ))) ; end progn(zone-name), if zone-name, while
 
   ;; Thaw any layers frozen during the session (e.g. txt-lyrs-frozen, froze)
