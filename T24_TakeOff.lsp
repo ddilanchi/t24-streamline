@@ -1687,28 +1687,99 @@
 ;; nearest zone and which side (N/S/E/W).  Uses full projected dimension.
 ;; One continuous loop across all zones — click-click-click, Enter when done.
 ;; Shows preview line before placing; each wall is individually undoable.
+;; Find the nearest edge of a zone polyline to a point.
+;; Returns (edge-p1 edge-p2 edge-len edge-midpt outward-normal-x outward-normal-y) or nil.
+(defun tz-nearest-zone-edge (pt / ss i ent xd pts n j k
+                                  ep1 ep2 emid edx edy elen
+                                  dist best-dist best-info
+                                  cx cy nx ny nlen)
+  (setq ss (ssget "X" (list (cons 8 *TZ-LYR-ZONE*) '(-4 . "<OR") '(0 . "HATCH") '(0 . "LWPOLYLINE") '(-4 . "OR>"))))
+  (if (null ss) nil
+    (progn
+      (setq best-dist 1e10  best-info nil)
+      (setq i 0)
+      (repeat (sslength ss)
+        (setq ent (ssname ss i)
+              xd  (tz-get-xdata ent))
+        (if (and xd (= (tz-xd-nth xd 1000 0) "ZONE"))
+          (progn
+            (setq pts (tz-get-pts ent)
+                  n   (length pts)
+                  cx  (car (tz-centroid pts))
+                  cy  (cadr (tz-centroid pts)))
+            (setq j 0)
+            (repeat n
+              (setq k   (rem (1+ j) n)
+                    ep1 (nth j pts)
+                    ep2 (nth k pts)
+                    emid (list (* 0.5 (+ (car ep1) (car ep2)))
+                               (* 0.5 (+ (cadr ep1) (cadr ep2))))
+                    dist (distance (list (car pt) (cadr pt)) emid))
+              (if (< dist best-dist)
+                (progn
+                  (setq edx (- (car ep2) (car ep1))
+                        edy (- (cadr ep2) (cadr ep1))
+                        elen (sqrt (+ (* edx edx) (* edy edy))))
+                  (if (> elen 0.01)
+                    (progn
+                      ;; Outward normal: perpendicular pointing away from centroid
+                      (setq nx (/ (- edy) elen)
+                            ny (/ edx elen))
+                      ;; Check if normal points away from centroid
+                      (if (< (+ (* nx (- (car emid) cx))
+                                (* ny (- (cadr emid) cy))) 0)
+                        (setq nx (- nx)  ny (- ny)))
+                      (setq best-dist dist
+                            best-info (list ent ep1 ep2 elen emid nx ny zone-id))
+                      (setq zone-id (tz-xd-nth xd 1000 1))
+                      (setq best-info (list ent ep1 ep2 elen emid nx ny zone-id))))))
+              (setq j (1+ j)))))
+        (setq i (1+ i)))
+      best-info)))
+
+;; Sum collinear edges on the same side of a zone.
+;; Given one edge (p1 p2), find all edges with similar angle and on same side.
+(defun tz-sum-collinear-side (pts edge-p1 edge-p2 / n j k ep1 ep2
+                                   ref-angle ang diff total)
+  (setq ref-angle (rem (+ (* (/ 180.0 pi) (atan (- (cadr edge-p2) (cadr edge-p1))
+                                                    (- (car edge-p2) (car edge-p1)))) 360.0) 360.0)
+        n (length pts)  total 0.0  j 0)
+  (repeat n
+    (setq k   (rem (1+ j) n)
+          ep1 (nth j pts)
+          ep2 (nth k pts)
+          ang (rem (+ (* (/ 180.0 pi) (atan (- (cadr ep2) (cadr ep1))
+                                               (- (car ep2) (car ep1)))) 360.0) 360.0)
+          diff (abs (- ang ref-angle)))
+    (if (> diff 180.0) (setq diff (- 360.0 diff)))
+    ;; Collinear if within 5 degrees
+    (if (< diff 5.0)
+      (setq total (+ total (distance (list (car ep1) (cadr ep1))
+                                     (list (car ep2) (cadr ep2))))))
+    (setq j (1+ j)))
+  total)
+
 (defun c:TZ-WSIDE ( / edge-info ent pts zone-id centroid
                       wall-ht label-ht type-choice wall-type
-                      min-x max-x min-y max-y
-                      click-pt dx dy side
+                      click-pt
                       len-ft az p1 p2 mid-pt
                       wall-id area-sqft marker lsave
                       dim-off lbl-off count
                       pv1 pv2 gr gr-type gr-data
-                      loop-on prev-side prev-ent)
+                      loop-on prev-key prev-ent
+                      ei ep1 ep2 elen emid nx ny
+                      total-len)
   (tz-setup)
   (setq lsave (getvar "CLAYER"))
   (defun *error* (msg)
     (if lsave (setvar "CLAYER" lsave))
-    (redraw)  ; clear any grdraw previews
+    (redraw)
     (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
       (princ (strcat "\n[T24] Error: " msg)))
     (princ))
 
-  ;; ── Session defaults ───────────────────────────────────────────────────────
   (setq wall-ht (getreal "\n[T24] Wall height (ft) <9>: "))
   (if (null wall-ht) (setq wall-ht 9.0))
-
   (setq label-ht 6.0)
 
   (initget "Exterior Interior")
@@ -1718,106 +1789,60 @@
     (setq wall-type "Interior Wall"))
 
   (princ (strcat "\n[T24] " wall-type ", " (rtos wall-ht 2 1) "' height."))
-  (princ "\n[T24] Move mouse near zone sides — preview shows which wall.")
-  (princ "\n[T24] Click to place, U to undo last, Enter/Esc to finish.")
+  (princ "\n[T24] Move mouse near zone edges -- preview shows wall.")
+  (princ "\n[T24] Click to place, U to undo, Enter/Esc to finish.")
 
-  ;; ── grread loop — live preview as mouse moves, place on click ─────────────
-  (setq count 0  loop-on T  prev-side nil  prev-ent nil
-        dim-off (* 3.0 *TZ-UNIT-FT*))  ; 3 feet offset
+  (setq count 0  loop-on T  prev-key nil  prev-ent nil
+        dim-off (* 3.0 *TZ-UNIT-FT*))
 
   (while loop-on
-    (setq gr (grread T 4 0))  ; track mouse, no cursor change
-    (setq gr-type (car gr)
-          gr-data (cadr gr))
+    (setq gr (grread T 4 0))
+    (setq gr-type (car gr)  gr-data (cadr gr))
 
     (cond
-      ;; ── Mouse move (type 5) — update preview ──
+      ;; ── Mouse move — preview nearest edge ──
       ((= gr-type 5)
-       (setq edge-info (tz-nearest-edge gr-data))
-       (if edge-info
+       (setq ei (tz-nearest-zone-edge gr-data))
+       (if ei
          (progn
-           (setq ent (nth 0 edge-info)
-                 pts (tz-get-pts ent)
-                 centroid (tz-centroid pts))
-           (setq min-x (apply 'min (mapcar 'car pts))
-                 max-x (apply 'max (mapcar 'car pts))
-                 min-y (apply 'min (mapcar 'cadr pts))
-                 max-y (apply 'max (mapcar 'cadr pts)))
-           (setq dx (- (car gr-data)  (car centroid))
-                 dy (- (cadr gr-data) (cadr centroid)))
-           (if (> (abs dx) (abs dy))
-             (if (> dx 0) (setq side "E") (setq side "W"))
-             (if (> dy 0) (setq side "N") (setq side "S")))
-           ;; Only redraw preview if side or zone changed
-           (if (or (/= side prev-side) (not (equal ent prev-ent)))
+           (setq ent  (nth 0 ei)  ep1  (nth 1 ei)  ep2  (nth 2 ei)
+                 elen (nth 3 ei)  emid (nth 4 ei)
+                 nx   (nth 5 ei)  ny   (nth 6 ei))
+           ;; Preview line: offset along outward normal
+           (setq pv1 (list (+ (car ep1) (* nx dim-off)) (+ (cadr ep1) (* ny dim-off)) 0.0)
+                 pv2 (list (+ (car ep2) (* nx dim-off)) (+ (cadr ep2) (* ny dim-off)) 0.0))
+           ;; Only redraw if edge changed
+           (if (or (not (equal ep1 prev-key)) (not (equal ent prev-ent)))
              (progn
-               (redraw)  ; clear old preview
-               (cond
-                 ((= side "N")
-                  (setq pv1 (list min-x (+ max-y dim-off) 0.0)
-                        pv2 (list max-x (+ max-y dim-off) 0.0)))
-                 ((= side "S")
-                  (setq pv1 (list min-x (- min-y dim-off) 0.0)
-                        pv2 (list max-x (- min-y dim-off) 0.0)))
-                 ((= side "E")
-                  (setq pv1 (list (+ max-x dim-off) min-y 0.0)
-                        pv2 (list (+ max-x dim-off) max-y 0.0)))
-                 ((= side "W")
-                  (setq pv1 (list (- min-x dim-off) min-y 0.0)
-                        pv2 (list (- min-x dim-off) max-y 0.0))))
-               (grdraw pv1 pv2 2 1)  ; yellow preview line
-               (setq prev-side side  prev-ent ent))))))
+               (redraw)
+               (grdraw pv1 pv2 2 1)
+               (setq prev-key ep1  prev-ent ent))))))
 
-      ;; ── Left click (type 3) — place the wall ──
+      ;; ── Left click — place wall ──
       ((= gr-type 3)
        (setq click-pt gr-data)
-       (redraw)  ; clear preview
-       (setq edge-info (tz-nearest-edge click-pt))
-       (if (null edge-info)
-         (princ "\n[T24] No T24-ZONE polylines found.")
+       (redraw)
+       (setq ei (tz-nearest-zone-edge click-pt))
+       (if (null ei)
+         (princ "\n[T24] No zone found.")
          (progn
-           (setq ent (nth 0 edge-info)
-                 pts (tz-get-pts ent)
-                 zone-id (tz-zone-of-ent ent)
-                 centroid (tz-centroid pts))
+           (setq ent     (nth 0 ei)  ep1   (nth 1 ei)  ep2   (nth 2 ei)
+                 elen    (nth 3 ei)  emid  (nth 4 ei)
+                 nx      (nth 5 ei)  ny    (nth 6 ei)
+                 zone-id (nth 7 ei)
+                 pts     (tz-get-pts ent))
            (if (null zone-id) (setq zone-id "Z-???"))
-           (setq min-x (apply 'min (mapcar 'car pts))
-                 max-x (apply 'max (mapcar 'car pts))
-                 min-y (apply 'min (mapcar 'cadr pts))
-                 max-y (apply 'max (mapcar 'cadr pts)))
-           (setq dx (- (car click-pt) (car centroid))
-                 dy (- (cadr click-pt) (cadr centroid)))
-           (if (> (abs dx) (abs dy))
-             (if (> dx 0) (setq side "E") (setq side "W"))
-             (if (> dy 0) (setq side "N") (setq side "S")))
-           (cond
-             ((= side "N")
-              (setq len-ft (/ (- max-x min-x) *TZ-UNIT-FT*)  az 0.0
-                    p1 (list min-x max-y)  p2 (list max-x max-y)
-                    mid-pt (list (/ (+ min-x max-x) 2.0) max-y 0.0)
-                    pv1 (list min-x (+ max-y dim-off) 0.0)
-                    pv2 (list max-x (+ max-y dim-off) 0.0)))
-             ((= side "S")
-              (setq len-ft (/ (- max-x min-x) *TZ-UNIT-FT*)  az 180.0
-                    p1 (list min-x min-y)  p2 (list max-x min-y)
-                    mid-pt (list (/ (+ min-x max-x) 2.0) min-y 0.0)
-                    pv1 (list min-x (- min-y dim-off) 0.0)
-                    pv2 (list max-x (- min-y dim-off) 0.0)))
-             ((= side "E")
-              (setq len-ft (/ (- max-y min-y) *TZ-UNIT-FT*)  az 90.0
-                    p1 (list max-x min-y)  p2 (list max-x max-y)
-                    mid-pt (list max-x (/ (+ min-y max-y) 2.0) 0.0)
-                    pv1 (list (+ max-x dim-off) min-y 0.0)
-                    pv2 (list (+ max-x dim-off) max-y 0.0)))
-             ((= side "W")
-              (setq len-ft (/ (- max-y min-y) *TZ-UNIT-FT*)  az 270.0
-                    p1 (list min-x min-y)  p2 (list min-x max-y)
-                    mid-pt (list min-x (/ (+ min-y max-y) 2.0) 0.0)
-                    pv1 (list (- min-x dim-off) min-y 0.0)
-                    pv2 (list (- min-x dim-off) max-y 0.0))))
 
-           (setq wall-id  (tz-next-wall-id)
-                 area-sqft (* len-ft wall-ht))
+           ;; Sum collinear edges for total wall length
+           (setq total-len (tz-sum-collinear-side pts ep1 ep2)
+                 len-ft (/ total-len *TZ-UNIT-FT*)
+                 az (tz-wall-azimuth ep1 ep2)
+                 p1 ep1  p2 ep2
+                 mid-pt (list (car emid) (cadr emid) 0.0)
+                 pv1 (list (+ (car ep1) (* nx dim-off)) (+ (cadr ep1) (* ny dim-off)) 0.0)
+                 pv2 (list (+ (car ep2) (* nx dim-off)) (+ (cadr ep2) (* ny dim-off)) 0.0)
+                 area-sqft (* len-ft wall-ht)
+                 wall-id (tz-next-wall-id))
 
            ;; ── Undo group for this wall ──
            (command "_.UNDO" "_Begin")
@@ -1850,22 +1875,19 @@
                           '(100 . "AcDbLine")
                           (cons 10 pv1) (cons 11 pv2)))
                (setvar "CLAYER" lsave)
-               ;; Visual label — 6' further out
+               ;; Visual label -- offset along outward normal
                (setq lbl-off (+ dim-off (* 6.0 *TZ-UNIT-FT*)))
-               (cond
-                 ((= side "N") (setq mid-pt (list (car mid-pt) (+ (cadr mid-pt) lbl-off) 0.0)))
-                 ((= side "S") (setq mid-pt (list (car mid-pt) (- (cadr mid-pt) lbl-off) 0.0)))
-                 ((= side "E") (setq mid-pt (list (+ (car mid-pt) lbl-off) (cadr mid-pt) 0.0)))
-                 ((= side "W") (setq mid-pt (list (- (car mid-pt) lbl-off) (cadr mid-pt) 0.0))))
+               (setq mid-pt (list (+ (car emid) (* nx lbl-off))
+                                  (+ (cadr emid) (* ny lbl-off)) 0.0))
                (tz-wall-label mid-pt wall-id wall-type len-ft wall-ht area-sqft az label-ht)
                (setq count (1+ count))
                (princ (strcat "\n[T24] " wall-id ": " (rtos len-ft 2 1) "' "
                               wall-type " in " zone-id
-                              " (" (rtos az 2 0) (chr 176) ") [" side " side]")))
+                              " (" (rtos az 2 0) (chr 176) ")")))
              (princ "\n[T24] Failed to create wall marker."))
 
            (command "_.UNDO" "_End")))
-       (setq prev-side nil  prev-ent nil))  ; reset preview tracking
+       (setq prev-key nil  prev-ent nil))  ; reset preview tracking
 
       ;; ── Keyboard input (type 2) ──
       ((= gr-type 2)
