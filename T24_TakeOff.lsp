@@ -2700,7 +2700,7 @@
 ;; ── TZ-ZONE1 / TZ-ZONE2 / TZ-ZONE3 ────────────────────────────────────────
 ;; Thin wrappers: set shape mode, call TZ-ZONE, clear mode.
 
-(defun c:TZ-ZONE1 ()
+(defun c:TZ-ZONECONVEX ()
   (princ "\n[T24] Mode: CONVEX HULL")
   (setq *TZ-SHAPE-MODE* 1)
   (c:TZ-ZONE)
@@ -2922,7 +2922,7 @@
 (princ "\n|  TZ-EXPORT-ALL- Export all open drawings   |")
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
-(princ "\n|  TZ-ZONE1     - Zone + convex hull          |")
+(princ "\n|  TZ-ZONECONVEX- Zone + convex hull          |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
