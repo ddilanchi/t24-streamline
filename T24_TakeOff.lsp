@@ -1002,15 +1002,18 @@
       (tz-set-pline-verts obj verts))))
 
 ;; ── TZ-ZONE ──────────────────────────────────────────────────────────────────
+;; Batch workflow: click all room names first (fast), then process all hatches.
 (defun c:TZ-ZONE ( / *error* sel sel2 txt-ent txt-edata txt-str txt-lyr txt-pt
                      ent last-ent pts area-ft centroid
                      zone-id zone-name ceil-ht floor condition occupancy
                      ce cd cl edata froze txt-lyrs-frozen gap-tol hpg-save
+                     hpb-save hpn-save
                      txt-layers choice ldata ed2
                      patch-lines pp1 pp2
                      ss-near j near-ent near-ed near-str near-pt near-dist
                      nearby-texts txt-ins blk-ref blk-name blk-def blk-ref-lyr
-                     sub-ent sub-ed near-lyr)
+                     sub-ent sub-ed near-lyr
+                     room-queue room-data failed-rooms r)
   ;; Allow (command ...) calls inside *error* handler (AutoCAD 2015+ requirement)
   (*push-error-using-command*)
   (setq *TZ-BUSY* T)
@@ -1147,7 +1150,7 @@
         (princ "\n[T24] >>> Generating boundary automatically... <<<")
         
         ;; Use the robust built-in boundary function!
-        (setq ent (tz-hatch-boundary txt-pt gap-tol))
+        (setq ent (tz-create-zone-hatch txt-pt gap-tol))
 
         (setvar "CMDECHO" 0)
         (setvar "CMDDIA" 0)
