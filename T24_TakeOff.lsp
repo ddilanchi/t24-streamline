@@ -1118,10 +1118,8 @@
         (setvar "CLAYER" *TZ-LYR-ZONE*)
         (princ "\n[T24] >>> HATCH the room now. Press Enter/Esc when done. <<<")
 
-        ;; Launch native HATCH tool -- user clicks inside room
-        (command "_.HATCH")
-        ;; HATCH tool runs interactively -- user clicks, adjusts, closes
-        ;; When they finish (Enter/Esc/close ribbon), control returns here
+        ;; Launch native HATCH tool -- pause suspends LISP until user finishes
+        (command "_.HATCH" pause)
 
         ;; Thaw text layer immediately
         (if txt-lyr
