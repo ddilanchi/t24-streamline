@@ -2746,41 +2746,38 @@
   (setq base-pt (getpoint "\n[ZCOPY] Pick base/reference point on source: "))
   (if (null base-pt) (progn (princ "\n[ZCOPY] Cancelled.") (exit)))
 
-  ;; 3. Loop: click text, then click destination
+  ;; 3. Loop: click destinations, auto-find text at each
   (setq count 0)
-  (princ "\n[ZCOPY] For each room: click name text, then click destination. Enter to finish.")
-  (setq sel T)
-  (while sel
-    (setq sel (nentsel "\n[ZCOPY] Click room name text (Enter to finish): ")
-          zone-name nil)
-    (if (null sel)
-      (princ "\n[ZCOPY] Finishing.")
-      (progn
-        ;; Validate text
-        (if (member (cdr (assoc 0 (entget (car sel)))) '("TEXT" "MTEXT"))
-          (setq zone-name (vl-string-trim " " (cdr (assoc 1 (entget (car sel)))))
-                txt-pt    (cadr sel)))
-        (if (or (null zone-name) (= zone-name ""))
-          (princ "\n[ZCOPY] Not text, try again.")
-          (progn
-            ;; Auto-append nearby text (room number)
-            (setq nearby-texts '())
-            (tz-scan-nearby-text txt-pt (car sel) zone-name 36.0)
-            (if nearby-texts
-              (progn
-                (setq nearby-texts (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
-                (setq zone-name (strcat zone-name " " (cadr (car nearby-texts))))))
-            (if (> (strlen zone-name) 30) (setq zone-name (substr zone-name 1 30)))
-            (princ (strcat "\n[ZCOPY] Zone: \"" zone-name "\""))
+  (princ "\n[ZCOPY] Click destination points. Enter to finish.")
+  (while (setq dest-pt (getpoint "\n[ZCOPY] Destination point (Enter to finish): "))
+    (command "_.UNDO" "_Begin")
 
-            ;; Click destination
-            (setq dest-pt (getpoint "\n[ZCOPY] Click destination point: "))
-            (if dest-pt
-              (progn
-                (command "_.UNDO" "_Begin")
-                (setq dx (- (car dest-pt) (car base-pt))
-                      dy (- (cadr dest-pt) (cadr base-pt))
-                      new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts))
+    ;; Compute offset and new points
+    (setq dx (- (car dest-pt) (car base-pt))
+          dy (- (cadr dest-pt) (cadr base-pt))
+          new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts)
+          centroid (tz-centroid new-pts))
+
+    ;; Scan for text near the centroid of the copied zone
+    (setq nearby-texts '()
+          zone-name nil)
+    (tz-scan-nearby-text centroid nil "" 36.0)
+    (if nearby-texts
+      (progn
+        (setq nearby-texts (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
+        (setq zone-name (cadr (car nearby-texts)))
+        (if (and (> (length nearby-texts) 1)
+                 (< (car (cadr nearby-texts)) 48.0))
+          (setq zone-name (strcat zone-name " " (cadr (cadr nearby-texts)))))))
+    (if (or (null zone-name) (= zone-name ""))
+      (progn
+        (setq zone-name (getstring T "\n[ZCOPY] No text found. Enter zone name: "))
+        (if (= zone-name "") (setq zone-name "UNNAMED"))))
+    (if (> (strlen zone-name) 30) (setq zone-name (substr zone-name 1 30)))
+    (princ (strcat "\n[ZCOPY] Zone: \"" zone-name "\""))
+
+    ;; Create polyline
+    (progn
                 (setvar "CLAYER" *TZ-LYR-ZONE*)
                 (setq elist
                   (list '(0 . "LWPOLYLINE") '(100 . "AcDbEntity")
@@ -2806,10 +2803,10 @@
                           "T24-Zone-Update"
                           '((:vlr-modified . tz-zone-modified-callback)))
                         (if *TZ-REACTORS* *TZ-REACTORS* '())))
-                (setq count (1+ count))
-                (princ (strcat "\n[ZCOPY] #" (itoa count) " \"" zone-name
-                               "\"  " (rtos area-ft 2 1) " sqft"))
-                (command "_.UNDO" "_End"))))))))
+      (setq count (1+ count))
+      (princ (strcat "\n[ZCOPY] #" (itoa count) " \"" zone-name
+                     "\"  " (rtos area-ft 2 1) " sqft"))
+      (command "_.UNDO" "_End")))
 
   (setvar "CLAYER" lsave)
   (if (> count 0) (c:TZ-WATCH))
