@@ -380,14 +380,13 @@
   (setq dcl-path (vl-filename-mktemp "tz_bnd" nil ".dcl"))
   (setq f (open dcl-path "w"))
   (write-line "tz_bnd : dialog {" f)
-  (write-line "  label = \"BOUNDARY Failed\";" f)
+  (write-line "  label = \"Hatch Failed\";" f)
   (write-line "  : column {" f)
   (write-line "    : button { key = \"retry\";  label = \"&Retry at new point\"; width = 32; fixed_width = true; }" f)
   (write-line "    : button { key = \"patch\";  label = \"&Patch gaps (draw lines)\"; width = 32; fixed_width = true; }" f)
   (write-line "    : spacer { height = 0.2; }" f)
-  (write-line "    : button { key = \"manual\"; label = \"&Draw polyline (click corners)\"; width = 32; fixed_width = true; }" f)
-  (write-line "    : button { key = \"rect\";   label = \"Draw &rectangle (2 corners)\"; width = 32; fixed_width = true; }" f)
-  (write-line "    : button { key = \"select\"; label = \"&Select existing polyline\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"manual\"; label = \"&Draw polyline (hatch inside)\"; width = 32; fixed_width = true; }" f)
+  (write-line "    : button { key = \"rect\";   label = \"Draw &rectangle (hatch inside)\"; width = 32; fixed_width = true; }" f)
   (write-line "    : spacer { height = 0.3; }" f)
   (write-line "    : button { key = \"cancel\"; label = \"Cancel\"; is_cancel = true; width = 32; fixed_width = true; }" f)
   (write-line "  }" f)
@@ -403,7 +402,6 @@
       (action_tile "patch"  "(setq result \"Patch\")  (done_dialog 1)")
       (action_tile "manual" "(setq result \"Manual\") (done_dialog 1)")
       (action_tile "rect"   "(setq result \"Rect\")   (done_dialog 1)")
-      (action_tile "select" "(setq result \"Select\") (done_dialog 1)")
       (action_tile "cancel" "(setq result nil) (done_dialog 0)")
       (start_dialog)
       (unload_dialog dcl-id)))
@@ -463,6 +461,16 @@
               (cons 10 (list x1 y2))))
       (entmake elist)
       (entlast))))
+
+;; Create hatch inside a closed polyline, delete the polyline, return hatch.
+(defun tz-hatch-inside-pline (pline-ent / pts centroid hatch-ent)
+  (setq pts (tz-get-pts pline-ent)
+        centroid (tz-centroid pts))
+  ;; Hatch at centroid of the polyline
+  (setq hatch-ent (tz-create-zone-hatch (list (car centroid) (cadr centroid)) 1.0))
+  ;; Delete the polyline
+  (if hatch-ent (entdel pline-ent))
+  (if hatch-ent hatch-ent nil))
 
 ;; ── Layer freeze/thaw helpers ────────────────────────────────────────────────
 ;; Use _.-LAYER command (command-line version, NOT dialog _.LAYER).
@@ -553,57 +561,43 @@
 
 ;; ── Hatch-based boundary detection ──────────────────────────────────────────
 ;; Creates a temporary HATCH, extracts its associative boundary polyline,
-;; then deletes the hatch. Works where _-BOUNDARY fails (XREF geometry).
-(defun tz-try-hatch-boundary (pt gap-tol / old-gaptol old-hpbound old-hpname
-                                           old-hpassoc last-ent
-                                           hatch-ent scan-ent ent etype
-                                           best-area cur-area)
-  ;; Save and set sysvars
+;; Create a hatch at pt using standard hatch tool.
+;; Gradient radial fill, 50% transparency, on T24-ZONE layer.
+;; Room must be visible on screen. Returns hatch entity or nil.
+(defun tz-create-zone-hatch (pt gap-tol / old-gaptol old-hpbound last-ent
+                                          scan-ent all-new e ent obj)
   (setq old-gaptol  (getvar "HPGAPTOL")
-        old-hpbound (getvar "HPBOUNDRETAIN")
-        old-hpname  (getvar "HPNAME")
-        old-hpassoc (getvar "HPASSOC"))
+        old-hpbound (getvar "HPBOUNDRETAIN"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 1)   ;; retain boundary polyline
-  (setvar "HPNAME" "SOLID")    ;; solid fill
-  (setvar "HPASSOC" 0)         ;; non-associative (simpler cleanup)
-  (setq last-ent (entlast))
+  (setvar "HPBOUNDRETAIN" 0)
+  (setq last-ent (entlast)  ent nil)
 
-  ;; Simple hatch: pick internal point, press Enter to finish
-  (command "_-HATCH" pt "")
+  ;; Use HATCH with gradient
+  (command "_-HATCH" "_Properties" "_Solid" "" pt "")
 
-  ;; Collect all new entities, keep the hatch, delete everything else
+  ;; Collect new entities, find the hatch
   (if (not (equal (entlast) last-ent))
     (progn
       (setq scan-ent (entnext last-ent)  all-new '())
       (while scan-ent
         (setq all-new (cons scan-ent all-new))
         (setq scan-ent (entnext scan-ent)))
-      ;; Find the hatch entity
+      ;; Find the hatch
       (foreach e all-new
         (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
           (setq ent e)))
-      ;; Move hatch to T24-ZONE layer
+      ;; Set up the hatch: layer, transparency
       (if ent
         (progn
+          (setq obj (vlax-ename->vla-object ent))
           (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
-          ;; Set transparency
-          (vla-put-Transparency (vlax-ename->vla-object ent) 75)))
+          (vla-put-Transparency obj 50)))
       ;; Delete everything except the hatch
       (foreach e all-new
         (if (not (equal e ent)) (entdel e)))))
 
-  ;; Restore sysvars
   (setvar "HPGAPTOL" old-gaptol)
   (setvar "HPBOUNDRETAIN" old-hpbound)
-  (setvar "HPNAME" old-hpname)
-  (setvar "HPASSOC" old-hpassoc)
-  ent)
-
-;; Hatch-based boundary: zoom extents, try once
-;; Room must be visible on screen for hatch to work.
-(defun tz-hatch-boundary-v2 (pt gap-tol / ent)
-  (setq ent (tz-try-hatch-boundary pt gap-tol))
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -664,6 +658,7 @@
               (setq seen (cons (vla-get-handle (vlax-ename->vla-object ent2)) seen))
               (if (and (/= str2 "")
                        (/= str2 skip-str)
+                       (wcmatch str2 "*#*")  ;; must contain a number
                        (not (tz-skip-text-p str2))
                        (not (wcmatch (strcase lyr2) "T24-*")))
                 (progn
@@ -1123,7 +1118,7 @@
         ;; ── Run boundary ──
         (princ "\n[T24] Running HATCH boundary...")
         (setq *tz-t0* (getvar "MILLISECS"))
-        (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
+        (setq ent (tz-create-zone-hatch txt-pt gap-tol))
         (princ (strcat "\n[TIME] BOUNDARY: " (itoa (- (getvar "MILLISECS") *tz-t0*)) "ms"))
         (if ent
           (princ "\n[T24] Boundary created.")
@@ -1157,14 +1152,14 @@
                 (progn
                   (princ (strcat "\n[T24]   " (itoa (length patch-lines))
                                  " patch line(s). Retrying..."))
-                  (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol)))
+                  (setq ent (tz-create-zone-hatch txt-pt gap-tol)))
                 (princ "\n[T24]   No lines drawn.")))
 
             ;; ── Retry mode: pick a new point, try full gap tolerance range ──
             (progn
               (setq txt-pt (getpoint "\n[T24]   Click inside the room: "))
               (if txt-pt
-                (setq ent (tz-hatch-boundary-v2 txt-pt gap-tol))
+                (setq ent (tz-create-zone-hatch txt-pt gap-tol))
                 (princ "\n[T24]   No point picked."))))
 
           ) ;; end while
@@ -1183,20 +1178,19 @@
           (cond
             ((null choice)
              (princ "\n[T24] Cancelled, skipping this zone."))
-            ((= choice "Select")
-             (progn
-               (princ "\n[T24] Select an existing closed polyline: ")
-               (setq sel2 (entsel))
-               (if (null sel2) (progn (princ "\n[T24] Cancelled.") (setq choice nil)))
-               (if sel2
-                 (progn
-                   (setq ent (car sel2))
-                   (if (/= (cdr (assoc 0 (entget ent))) "LWPOLYLINE")
-                     (progn (princ "\n[T24] Not a polyline, skipping.") (setq ent nil)))))))
             ((= choice "Rect")
-             (setq ent (tz-pick-rectangle)))
-            (T  ;; "Manual" — pick corners
-             (setq ent (tz-pick-corners)))))
+             ;; Draw rectangle, hatch inside it, delete the polyline
+             (progn
+               (setq ent (tz-pick-rectangle))
+               (if ent
+                 (progn
+                   (setq ent (tz-hatch-inside-pline ent))))))
+            (T  ;; "Manual" -- draw polyline, hatch inside it
+             (progn
+               (setq ent (tz-pick-corners))
+               (if ent
+                 (progn
+                   (setq ent (tz-hatch-inside-pline ent))))))))
 
         (if ent
           (progn
