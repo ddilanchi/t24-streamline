@@ -2792,13 +2792,14 @@
                 (setq new-ent (entlast)
                       area-ft (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
                                  (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
+                      centroid (tz-centroid new-pts)
                       zone-id (tz-next-zone-id))
                 (tz-set-xdata new-ent
                   (list *TZ-APP*
                     (cons 1000 "ZONE") (cons 1000 zone-id) (cons 1000 zone-name)
                     (cons 1040 src-cht) (cons 1070 src-fl)
                     (cons 1000 src-cond) (cons 1000 src-occ)))
-                (tz-zone-label dest-pt zone-name area-ft src-cht src-fl zone-id)
+                (tz-zone-label centroid zone-name area-ft src-cht src-fl zone-id)
                 (setq *TZ-REACTORS*
                   (cons (vlr-object-reactor
                           (list (vlax-ename->vla-object new-ent))
