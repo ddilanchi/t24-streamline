@@ -71,7 +71,7 @@ def pt_to_seg_dist(pt, p1, p2):
 
 # ── Main processing ───────────────────────────────────────────────────────────
 
-def process(json_path):
+def process(json_path, skip_interior=False):
     with open(json_path, 'r', encoding='utf-8') as f:
         raw = f.read()
     data = json.loads(raw)
@@ -105,7 +105,9 @@ def process(json_path):
             'p2':          w.get('p2'),
         })
 
-    # ── 4 horizontal surfaces per zone ─────────────────────────────────────
+    # ── Horizontal surfaces per zone ────────────────────────────────────────
+    # With --no-interior: only Slab + Roof (2 per zone)
+    # Without: Slab + Interior Floor + Interior Ceiling + Roof (4 per zone)
     horiz_rows = []
     for zone in zones:
         zid = zone['id']
@@ -115,16 +117,17 @@ def process(json_path):
             'name': 'Slab on Grade', 'type': 'Slab on Grade', 'orientation': '',
             'azimuth': 0, 'area_sqft': round(area, 1), 'adj_zone': '', 'p1': None, 'p2': None,
         })
-        horiz_rows.append({
-            'zone_id': zid, 'wall_id': f"{zid}-FLOOR",
-            'name': 'Interior Floor', 'type': 'Raised Floor', 'orientation': '',
-            'azimuth': 0, 'area_sqft': round(area, 1), 'adj_zone': '', 'p1': None, 'p2': None,
-        })
-        horiz_rows.append({
-            'zone_id': zid, 'wall_id': f"{zid}-CEIL",
-            'name': 'Interior Ceiling', 'type': 'Interior Ceiling', 'orientation': '',
-            'azimuth': 0, 'area_sqft': round(area, 1), 'adj_zone': '', 'p1': None, 'p2': None,
-        })
+        if not skip_interior:
+            horiz_rows.append({
+                'zone_id': zid, 'wall_id': f"{zid}-FLOOR",
+                'name': 'Interior Floor', 'type': 'Raised Floor', 'orientation': '',
+                'azimuth': 0, 'area_sqft': round(area, 1), 'adj_zone': '', 'p1': None, 'p2': None,
+            })
+            horiz_rows.append({
+                'zone_id': zid, 'wall_id': f"{zid}-CEIL",
+                'name': 'Interior Ceiling', 'type': 'Interior Ceiling', 'orientation': '',
+                'azimuth': 0, 'area_sqft': round(area, 1), 'adj_zone': '', 'p1': None, 'p2': None,
+            })
         horiz_rows.append({
             'zone_id': zid, 'wall_id': f"{zid}-ROOF",
             'name': 'Roof', 'type': 'Roof', 'orientation': '',
@@ -366,19 +369,26 @@ def write_geometry(json_path, zones, walls, openings):
 # ── Entry point ───────────────────────────────────────────────────────────────
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python tz_to_excel.py <file.json> [file2.json ...]")
+        print("Usage: python tz_to_excel.py <file.json> [file2.json ...] [--no-interior]")
         print("       python tz_to_excel.py <directory>  (finds all *_t24.json)")
+        print("       --no-interior  Skip interior floor/ceiling surfaces")
         sys.exit(1)
 
+    # Check for --no-interior flag
+    skip_interior = '--no-interior' in sys.argv
+    args = [a for a in sys.argv[1:] if a != '--no-interior']
+    if skip_interior:
+        print("Skipping interior floor/ceiling surfaces.")
+
     # If a single directory is given, find all *_t24.json files in it
-    if len(sys.argv) == 2 and os.path.isdir(sys.argv[1]):
-        json_paths = sorted(glob.glob(os.path.join(sys.argv[1], "*_t24.json")))
+    if len(args) == 1 and os.path.isdir(args[0]):
+        json_paths = sorted(glob.glob(os.path.join(args[0], "*_t24.json")))
         if not json_paths:
-            print(f"No *_t24.json files found in: {sys.argv[1]}")
+            print(f"No *_t24.json files found in: {args[0]}")
             sys.exit(1)
-        print(f"Found {len(json_paths)} JSON files in {sys.argv[1]}")
+        print(f"Found {len(json_paths)} JSON files in {args[0]}")
     else:
-        json_paths = sys.argv[1:]
+        json_paths = args
 
     for p in json_paths:
         if not os.path.exists(p):
@@ -394,7 +404,7 @@ def main():
 
     for jp in json_paths:
         print(f"Reading: {jp}")
-        z, w, o, cz, fo = process(jp)
+        z, w, o, cz, fo = process(jp, skip_interior)
         dwg_name = os.path.splitext(os.path.basename(jp))[0].replace('_t24', '')
 
         # Tag each item with its source drawing
