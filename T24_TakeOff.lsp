@@ -1767,7 +1767,7 @@
   ;; raw_az = facing direction in rotated space (0=N, 90=E, etc.)
   ;; Subtract wall-ang-offset to undo rotation back to AutoCAD space.
   ;; Then subtract north arrow to get true azimuth. Snap to nearest cardinal.
-  (setq az (rem (+ raw-az (- wall-ang-offset)
+  (setq az (rem (+ raw-az 90.0 (- wall-ang-offset)
                    (if *TZ-NORTH-ANGLE* (- *TZ-NORTH-ANGLE*) 0.0)
                    720.0) 360.0))
   ;; Snap to nearest cardinal (0, 45, 90, 135, 180, 225, 270, 315)
