@@ -512,55 +512,128 @@
 ;; ── Hatch-based boundary detection ──────────────────────────────────────────
 ;; Creates a temporary HATCH, extracts its associative boundary polyline,
 ;; then deletes the hatch. Works where _-BOUNDARY fails (XREF geometry).
+;; Extract boundary loop vertices from a HATCH entity via VLA.
+;; Returns list of (x y) points for the largest loop, or nil.
+(defun tz-hatch-loop-pts (hatch-ent / obj nloops i loop-type
+                                      verts bulges pts best-pts best-area
+                                      loop-area j x y n)
+  (setq obj (vlax-ename->vla-object hatch-ent)
+        nloops (vla-get-NumberOfLoops obj)
+        best-pts nil  best-area 0.0  i 0)
+  (repeat nloops
+    (setq loop-type (vla-GetLoopAt obj i 'verts 'bulges))
+    (if verts
+      (progn
+        (setq pts '()
+              n (/ (length (vlax-safearray->list (vlax-variant-value verts))) 2)
+              j 0)
+        (repeat n
+          (setq x (vlax-safearray-get-element (vlax-variant-value verts) (* 2 j))
+                y (vlax-safearray-get-element (vlax-variant-value verts) (1+ (* 2 j))))
+          (setq pts (append pts (list (list x y))))
+          (setq j (1+ j)))
+        ;; Compute area via shoelace
+        (setq loop-area (tz-poly-area pts))
+        (if (> loop-area best-area)
+          (setq best-area loop-area  best-pts pts))))
+    (setq i (1+ i)))
+  best-pts)
+
+;; Signed polygon area (shoelace formula) in drawing units squared
+(defun tz-poly-area (pts / n i sum p1 p2)
+  (setq n (length pts) sum 0.0 i 0)
+  (repeat n
+    (setq p1 (nth i pts)
+          p2 (nth (rem (1+ i) n) pts)
+          sum (+ sum (- (* (car p1) (cadr p2)) (* (car p2) (cadr p1))))
+          i (1+ i)))
+  (abs (/ sum 2.0)))
+
+;; Create hatch, extract loop as polyline, delete hatch. Returns polyline ent or nil.
+(defun tz-try-hatch-extract (pt gap-tol / old-gaptol old-hpname old-hpassoc
+                                          last-ent scan-ent all-new e
+                                          hatch-ent pts elist p ent)
+  (setq old-gaptol (getvar "HPGAPTOL")
+        old-hpname (getvar "HPNAME")
+        old-hpassoc (getvar "HPASSOC"))
+  (setvar "HPGAPTOL" gap-tol)
+  (setvar "HPBOUNDRETAIN" 0)   ;; don't retain -- we extract ourselves
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
+  (setq last-ent (entlast)  hatch-ent nil  ent nil)
+
+  (command "_-HATCH" pt "")
+
+  ;; Collect all new entities
+  (if (not (equal (entlast) last-ent))
+    (progn
+      (setq scan-ent (entnext last-ent)  all-new '())
+      (while scan-ent
+        (setq all-new (cons scan-ent all-new))
+        (setq scan-ent (entnext scan-ent)))
+      ;; Find the hatch entity
+      (foreach e all-new
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
+          (setq hatch-ent e)))
+      ;; Extract boundary loop from hatch
+      (if hatch-ent
+        (progn
+          (setq pts (tz-hatch-loop-pts hatch-ent))
+          (if (and pts (>= (length pts) 3))
+            (progn
+              ;; Build closed LWPOLYLINE from loop vertices
+              (setq elist
+                (list '(0 . "LWPOLYLINE")
+                      '(100 . "AcDbEntity")
+                      (cons 8 *TZ-LYR-ZONE*)
+                      '(100 . "AcDbPolyline")
+                      (cons 90 (length pts))
+                      '(70 . 1)))  ; closed
+              (foreach p pts
+                (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
+              (entmake elist)
+              (setq ent (entlast))))))
+      ;; Delete ALL hatch-created entities (hatch + any stray polylines)
+      (foreach e all-new (entdel e))))
+
+  (setvar "HPGAPTOL" old-gaptol)
+  (setvar "HPNAME" old-hpname)
+  (setvar "HPASSOC" old-hpassoc)
+  ent)
+
+;; Old HPBOUNDRETAIN approach (kept for TZ-ZTEST compatibility)
 (defun tz-try-hatch-boundary (pt gap-tol / old-gaptol old-hpbound old-hpname
                                            old-hpassoc last-ent
-                                           hatch-ent scan-ent ent etype
+                                           scan-ent ent etype all-new e
                                            best-area cur-area)
-  ;; Save and set sysvars
   (setq old-gaptol  (getvar "HPGAPTOL")
         old-hpbound (getvar "HPBOUNDRETAIN")
         old-hpname  (getvar "HPNAME")
         old-hpassoc (getvar "HPASSOC"))
   (setvar "HPGAPTOL" gap-tol)
-  (setvar "HPBOUNDRETAIN" 1)   ;; retain boundary polyline
-  (setvar "HPNAME" "SOLID")    ;; solid fill
-  (setvar "HPASSOC" 0)         ;; non-associative (simpler cleanup)
+  (setvar "HPBOUNDRETAIN" 1)
+  (setvar "HPNAME" "SOLID")
+  (setvar "HPASSOC" 0)
   (setq last-ent (entlast))
-
-  ;; Simple hatch: pick internal point, press Enter to finish
   (command "_-HATCH" pt "")
-
-  ;; Collect ALL new entities first (don't delete while walking)
   (if (not (equal (entlast) last-ent))
     (progn
-      (setq scan-ent (entnext last-ent)  ent nil  best-area 0.0
-            all-new '())
-      (while scan-ent
-        (setq all-new (cons scan-ent all-new))
-        (setq scan-ent (entnext scan-ent)))
-      ;; Find the largest polyline
+      (setq scan-ent (entnext last-ent)  ent nil  best-area 0.0  all-new '())
+      (while scan-ent (setq all-new (cons scan-ent all-new)) (setq scan-ent (entnext scan-ent)))
       (foreach e all-new
         (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
           (progn
             (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object e)))
-            (if (> cur-area best-area)
-              (setq best-area cur-area  ent e)))))
-      ;; Delete everything except the one we're keeping
-      (foreach e all-new
-        (if (not (equal e ent))
-          (entdel e)))))
-
-  ;; Restore sysvars
-  (setvar "HPGAPTOL" old-gaptol)
-  (setvar "HPBOUNDRETAIN" old-hpbound)
-  (setvar "HPNAME" old-hpname)
-  (setvar "HPASSOC" old-hpassoc)
+            (if (> cur-area best-area) (setq best-area cur-area  ent e)))))
+      (foreach e all-new (if (not (equal e ent)) (entdel e)))))
+  (setvar "HPGAPTOL" old-gaptol) (setvar "HPBOUNDRETAIN" old-hpbound)
+  (setvar "HPNAME" old-hpname) (setvar "HPASSOC" old-hpassoc)
   ent)
 
-;; Hatch-based version of tz-hatch-boundary
+;; Default boundary: hatch + extract loop as polyline. Progressive zoom.
 (defun tz-hatch-boundary-v2 (pt gap-tol / ent local-rad)
   ;; Try 1: current zoom
-  (setq ent (tz-try-hatch-boundary pt gap-tol))
+  (setq ent (tz-try-hatch-extract pt gap-tol))
   ;; Try 2: local zoom
   (if (null ent)
     (progn
@@ -568,13 +641,13 @@
       (command "_.ZOOM" "_Window"
         (list (- (car pt) local-rad) (- (cadr pt) local-rad))
         (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
-      (setq ent (tz-try-hatch-boundary pt gap-tol))
+      (setq ent (tz-try-hatch-extract pt gap-tol))
       (command "_.ZOOM" "_Previous")))
   ;; Try 3: zoom extents
   (if (null ent)
     (progn
       (command "_.ZOOM" "_Extents")
-      (setq ent (tz-try-hatch-boundary pt gap-tol))
+      (setq ent (tz-try-hatch-extract pt gap-tol))
       (command "_.ZOOM" "_Previous")))
   ent)
 
@@ -2667,15 +2740,6 @@
         (progn (princ " -> using convex hull") hull)
         (progn (princ " -> keeping original shape") pts)))))
 
-;; Signed polygon area (shoelace formula), returns absolute area in drawing units^2
-(defun tz-poly-area (pts / n i sum p1 p2)
-  (setq n (length pts) sum 0.0 i 0)
-  (repeat n
-    (setq p1 (nth i pts)
-          p2 (nth (rem (1+ i) n) pts)
-          sum (+ sum (- (* (car p1) (cadr p2)) (* (car p2) (cadr p1))))
-          i (1+ i)))
-  (abs (/ sum 2.0)))
 
 ;; Axis-aligned bounding box. Returns 4 corner points.
 (defun tz-bounding-box (pts / min-x min-y max-x max-y)
