@@ -918,6 +918,11 @@
     (if froze (tz-thaw-layers froze))
     (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
     (if hpg-save (setvar "HPGAPTOL" hpg-save) (setvar "HPGAPTOL" 0.0))
+    ;; Restore performance sysvars
+    (if *tz-perf-saves*
+      (progn
+        (foreach pv *tz-perf-saves* (setvar (car pv) (cdr pv)))
+        (setq *tz-perf-saves* nil)))
     (*pop-error-using-command*)
     (if (not (member msg '("Function cancelled" "quit / exit abort" "")))
       (princ (strcat "\n[T24] Error: " msg)))
@@ -926,6 +931,17 @@
   (tz-setup)
   (setq ce nil  cd nil  cl nil  froze nil  txt-lyrs-frozen nil
         hpg-save (getvar "HPGAPTOL"))
+
+  ;; ── Performance boost: save + set sysvars, restored on exit/error ──
+  (setq *tz-perf-saves*
+    (list (cons "HPQUICKPREVIEW"  (getvar "HPQUICKPREVIEW"))
+          (cons "REGENAUTO"       (getvar "REGENAUTO"))
+          (cons "SELECTIONPREVIEW" (getvar "SELECTIONPREVIEW"))
+          (cons "XREFNOTIFY"      (getvar "XREFNOTIFY"))))
+  (setvar "HPQUICKPREVIEW" 0)    ;; skip hatch preview computation
+  (setvar "REGENAUTO" 0)         ;; no auto-regen on zoom
+  (setvar "SELECTIONPREVIEW" 0)  ;; no hover highlighting
+  (setvar "XREFNOTIFY" 0)        ;; no xref notification overhead
 
   ;; ── Session setup dialog ────────────────────────────────────────────────────
   ;; Globals persist between runs; dialog pre-fills with previous values
@@ -1185,6 +1201,11 @@
   ;; Thaw any layers frozen during the session (e.g. txt-lyrs-frozen, froze)
   (if txt-lyrs-frozen (tz-thaw-layers txt-lyrs-frozen))
   (if froze (tz-thaw-layers froze))
+  ;; Restore performance sysvars
+  (if *tz-perf-saves*
+    (progn
+      (foreach pv *tz-perf-saves* (setvar (car pv) (cdr pv)))
+      (setq *tz-perf-saves* nil)))
   (setq *TZ-BUSY* nil)
   (*pop-error-using-command*)
   (c:TZ-WATCH)
