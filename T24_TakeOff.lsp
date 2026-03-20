@@ -2709,6 +2709,126 @@
 
 (setq *TZ-SHAPE-MODE* nil)
 
+;; ── TZ-ZONECOPY -- Copy a zone to new locations with auto-naming ────────────
+;; Select source zone, pick base point, then click destinations.
+;; At each destination, scans for nearby XREF text to auto-name the copy.
+(defun c:TZ-ZONECOPY ( / sel src-ent src-xd src-pts src-cht src-fl
+                          src-cond src-occ base-pt dest-pt
+                          dx dy new-pts new-ent elist p
+                          zone-name zone-id area-ft centroid
+                          nearby-texts count lsave)
+  (tz-setup)
+  (setq lsave (getvar "CLAYER"))
+
+  ;; 1. Select source zone
+  (princ "\n[ZCOPY] Select source zone polyline: ")
+  (setq sel (entsel))
+  (if (null sel) (progn (princ "\n[ZCOPY] Cancelled.") (exit)))
+  (setq src-ent (car sel))
+  (if (/= (cdr (assoc 0 (entget src-ent))) "LWPOLYLINE")
+    (progn (princ "\n[ZCOPY] Not a polyline.") (exit)))
+  (setq src-xd (tz-get-xdata src-ent))
+  (if (or (null src-xd) (/= (tz-xd-nth src-xd 1000 0) "ZONE"))
+    (progn (princ "\n[ZCOPY] Not a tagged zone.") (exit)))
+
+  ;; Read source zone properties
+  (setq src-pts  (tz-get-pts src-ent)
+        src-cht  (tz-xd-num src-xd 1040 0 9.0)
+        src-fl   (fix (tz-xd-num src-xd 1070 0 1))
+        src-cond (or (tz-xd-nth src-xd 1000 3) "Conditioned")
+        src-occ  (or (tz-xd-nth src-xd 1000 4) "Nonresidential"))
+
+  (princ (strcat "\n[ZCOPY] Source: " (tz-xd-nth src-xd 1000 2)
+                 " (" (itoa (length src-pts)) " verts, "
+                 (rtos src-cht 2 1) "' clg, Fl " (itoa src-fl) ")"))
+
+  ;; 2. Pick base point
+  (setq base-pt (getpoint "\n[ZCOPY] Pick base/reference point on source: "))
+  (if (null base-pt) (progn (princ "\n[ZCOPY] Cancelled.") (exit)))
+
+  ;; 3. Loop: click destinations
+  (setq count 0)
+  (princ "\n[ZCOPY] Click destination points. Enter when done.")
+  (while (setq dest-pt (getpoint "\n[ZCOPY] Destination point (Enter to finish): "))
+    (command "_.UNDO" "_Begin")
+
+    ;; Compute offset
+    (setq dx (- (car dest-pt) (car base-pt))
+          dy (- (cadr dest-pt) (cadr base-pt)))
+
+    ;; Create offset copy of polyline
+    (setq new-pts (mapcar '(lambda (p) (list (+ (car p) dx) (+ (cadr p) dy))) src-pts))
+    (setvar "CLAYER" *TZ-LYR-ZONE*)
+    (setq elist
+      (list '(0 . "LWPOLYLINE")
+            '(100 . "AcDbEntity")
+            (cons 8 *TZ-LYR-ZONE*)
+            '(100 . "AcDbPolyline")
+            (cons 90 (length new-pts))
+            '(70 . 1)))
+    (foreach p new-pts
+      (setq elist (append elist (list (cons 10 (list (car p) (cadr p)))))))
+    (entmake elist)
+    (setq new-ent (entlast))
+
+    ;; Scan for nearby text at destination to auto-name
+    (setq nearby-texts '()
+          zone-name nil)
+    (tz-scan-nearby-text dest-pt nil "" 36.0)
+    (if nearby-texts
+      (progn
+        (setq nearby-texts (vl-sort nearby-texts '(lambda (a b) (< (car a) (car b)))))
+        ;; Use the two closest texts as name (like "UNIT B21")
+        (setq zone-name (cadr (car nearby-texts)))
+        (if (and (> (length nearby-texts) 1)
+                 (< (car (cadr nearby-texts)) 48.0))
+          (setq zone-name (strcat zone-name " " (cadr (cadr nearby-texts)))))))
+
+    ;; If no text found, prompt for name
+    (if (null zone-name)
+      (progn
+        (setq zone-name (getstring T "\n[ZCOPY] No text found. Enter zone name: "))
+        (if (= zone-name "") (setq zone-name "UNNAMED"))))
+
+    (if (> (strlen zone-name) 30) (setq zone-name (substr zone-name 1 30)))
+
+    ;; Compute area and centroid
+    (setq area-ft  (/ (vlax-curve-getarea (vlax-ename->vla-object new-ent))
+                      (* *TZ-UNIT-FT* *TZ-UNIT-FT*))
+          centroid (tz-centroid new-pts)
+          zone-id  (tz-next-zone-id))
+
+    ;; Store XDATA
+    (tz-set-xdata new-ent
+      (list *TZ-APP*
+        (cons 1000 "ZONE")
+        (cons 1000 zone-id)
+        (cons 1000 zone-name)
+        (cons 1040 src-cht)
+        (cons 1070 src-fl)
+        (cons 1000 src-cond)
+        (cons 1000 src-occ)))
+
+    ;; Label + reactor
+    (tz-zone-label dest-pt zone-name area-ft src-cht src-fl zone-id)
+
+    (setq *TZ-REACTORS*
+      (cons (vlr-object-reactor
+              (list (vlax-ename->vla-object new-ent))
+              "T24-Zone-Update"
+              '((:vlr-modified . tz-zone-modified-callback)))
+            (if *TZ-REACTORS* *TZ-REACTORS* '())))
+
+    (setq count (1+ count))
+    (princ (strcat "\n[ZCOPY] #" (itoa count) " \"" zone-name
+                   "\"  " (rtos area-ft 2 1) " sqft"))
+    (command "_.UNDO" "_End"))
+
+  (setvar "CLAYER" lsave)
+  (if (> count 0) (c:TZ-WATCH))
+  (princ (strcat "\n[ZCOPY] Done. Copied " (itoa count) " zone(s)."))
+  (princ))
+
 ;; ── TZ-ZTEST — Diagnostic boundary tool ──────────────────────────────────────
 ;; Evaluates what BOUNDARY sees at a pick point. Reports nearby entity types,
 ;; Z-elevations, blocks/proxies, and tries BOUNDARY at multiple gap tolerances.
@@ -2923,6 +3043,7 @@
 (princ "\n|  TZ-LISTDATA  - List zone data             |")
 (princ "\n|  TZ-SHOWVERTS - Inspect polyline vertices  |")
 (princ "\n|  TZ-ZONECONVEX- Zone + convex hull          |")
+(princ "\n|  TZ-ZONECOPY  - Copy zone to new locations  |")
 (princ "\n|  TZ-WATCH     - Auto-update on pline edit  |")
 (princ "\n|  TZ-RESET     - Clear labels/markers       |")
 (princ "\n|  TZ-RESET-ALL - Full reset (incl. zones)   |")
