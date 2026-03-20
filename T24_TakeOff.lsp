@@ -601,10 +601,9 @@
   ent)
 
 ;; Hatch-based boundary: zoom extents, try once
+;; Room must be visible on screen for hatch to work.
 (defun tz-hatch-boundary-v2 (pt gap-tol / ent)
-  (command "_.ZOOM" "_Extents")
   (setq ent (tz-try-hatch-boundary pt gap-tol))
-  (command "_.ZOOM" "_Previous")
   ent)
 
 ;; ── Polyline cleaner: flatten arcs, remove stubs, collapse door triangles ─────
@@ -1024,7 +1023,8 @@
                  "  |  Gap tol " (rtos gap-tol 2 1) "\""
                  "  |  CZ " *TZ-CLIMATE-ZONE*
                  "  |  North " (rtos *TZ-NORTH-ANGLE* 2 1) (chr 176)))
-  (princ "\n[T24] Now click room name text for each zone. Press Enter when done.")
+  (princ "\n[T24] Make sure the room is visible on screen before clicking.")
+  (princ "\n[T24] Click room name text for each zone. Enter when done.")
 
   ;; ── Main room loop ────────────────────────────────────────────────────────
   (while
