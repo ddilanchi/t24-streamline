@@ -572,8 +572,8 @@
   (setvar "HPBOUNDRETAIN" 0)
   (setq last-ent (entlast)  ent nil)
 
-  ;; Use HATCH with gradient
-  (command "_-HATCH" "_Properties" "_Solid" "" pt "")
+  ;; Use interactive HATCH engine (faster than _-HATCH)
+  (command "_.HATCH" pt "")
 
   ;; Collect new entities, find the hatch
   (if (not (equal (entlast) last-ent))
