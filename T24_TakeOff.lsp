@@ -1146,16 +1146,37 @@
             (if (not (member txt-lyr txt-lyrs-frozen))
               (setq txt-lyrs-frozen (cons txt-lyr txt-lyrs-frozen)))))
 
-        ;; ── Launch BOUNDARY tool magically ──
+        ;; ── Create zone hatch ──
         (setq last-ent (entlast))
         (setvar "CLAYER" *TZ-LYR-ZONE*)
-        (princ "\n[T24] >>> Generating boundary automatically... <<<")
-        
-        ;; Use the robust built-in boundary function!
+
+        ;; Try fast VLA approach first
         (setq ent (tz-create-zone-hatch txt-pt gap-tol))
 
-        (setvar "CMDECHO" 0)
-        (setvar "CMDDIA" 0)
+        ;; If that failed, let user hatch manually with native tool
+        (if (null ent)
+          (progn
+            (princ "\n[T24] Auto-hatch failed. Click inside the room, then press Enter.")
+            (setvar "HPNAME" "SOLID")
+            (setvar "HPASSOC" 0)
+            (setvar "HPBOUNDRETAIN" 0)
+            (command-s "HATCH")
+            ;; Find what user created
+            (if (not (equal (entlast) last-ent))
+              (progn
+                (setq scan-ent (entnext last-ent)  all-new '())
+                (while scan-ent
+                  (setq all-new (cons scan-ent all-new))
+                  (setq scan-ent (entnext scan-ent)))
+                (foreach e all-new
+                  (if (and (entget e) (= (cdr (assoc 0 (entget e))) "HATCH"))
+                    (setq ent e)))
+                (if ent
+                  (progn
+                    (entmod (subst (cons 8 *TZ-LYR-ZONE*) (assoc 8 (entget ent)) (entget ent)))
+                    (vla-put-Transparency (vlax-ename->vla-object ent) 50)))
+                (foreach e all-new
+                  (if (not (equal e ent)) (entdel e)))))))
 
         ;; Thaw text layer immediately
         (if txt-lyr (tz-thaw-layer txt-lyr))
