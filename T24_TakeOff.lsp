@@ -833,10 +833,10 @@
             (setq dbg-num 1)
             (foreach ri to-remove
               (setq vpt (nth ri verts))
-              (entmake (list '(0 . "CIRCLE") '(8 . "T24-DBG") '(62 . 1)
+              (entmake (list '(0 . "CIRCLE") '(8 . "T24-DBG") '(62 . 3)
                              (cons 10 (list (car vpt) (cadr vpt) 0.0))
                              '(40 . 4.0)))
-              (entmake (list '(0 . "TEXT") '(8 . "T24-DBG") '(62 . 1)
+              (entmake (list '(0 . "TEXT") '(8 . "T24-DBG") '(62 . 3)
                              (cons 10 (list (car vpt) (cadr vpt) 0.0))
                              (cons 1 (itoa dbg-num))
                              '(40 . 3.0) '(72 . 1) '(73 . 2)
