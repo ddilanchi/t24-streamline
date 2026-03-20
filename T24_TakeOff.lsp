@@ -468,45 +468,54 @@
             (if (> (sslength ss-exp) 0)
               (command "_.PEDIT" (ssname ss-exp 0) "_Yes" "_Join" ss-exp "" ""))))
         (setq scan-ent (entnext scan-ent)))
-      ;; Find largest polyline
-      (setq scan-ent (entnext last-ent)  best-area 0.0)
+      ;; Collect all new entities, find largest polyline, delete the rest
+      (setq scan-ent (entnext last-ent)  best-area 0.0  all-new '())
       (while scan-ent
-        (if (= (cdr (assoc 0 (entget scan-ent))) "LWPOLYLINE")
-          (progn
-            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object scan-ent)))
-            (if (> cur-area best-area)
-              (setq best-area cur-area  ent scan-ent))))
+        (setq all-new (cons scan-ent all-new))
         (setq scan-ent (entnext scan-ent)))
-      ;; Delete everything else created
-      (setq scan-ent (entnext last-ent))
-      (while scan-ent
-        (if (not (equal scan-ent ent))
-          (entdel scan-ent))
-        (setq scan-ent (entnext scan-ent)))))
+      (foreach e all-new
+        (if (and (entget e) (= (cdr (assoc 0 (entget e))) "LWPOLYLINE"))
+          (progn
+            (setq cur-area (vlax-curve-getarea (vlax-ename->vla-object e)))
+            (if (> cur-area best-area)
+              (setq best-area cur-area  ent e)))))
+      (foreach e all-new
+        (if (not (equal e ent)) (entdel e)))))
   (setvar "HPGAPTOL" old-gaptol)
   ent)
 
-;; Run BOUNDARY at pt using the session gap tolerance. Returns polyline or nil.
-;; Tries at current zoom first, then zooms to a local window around the point,
-;; then falls back to zoom extents. Runs REGENALL once before starting.
+;; Check if polyline contains the click point (rejects escaped boundaries)
+(defun tz-boundary-contains-pt (ent pt / pts)
+  (if (null ent) nil
+    (progn
+      (setq pts (tz-get-pts ent))
+      (tz-pip (list (car pt) (cadr pt)) pts))))
+
+;; Run BOUNDARY at pt. Tries current zoom, local, extents.
+;; Rejects results that don't contain the click point (escaped boundaries).
 (defun tz-hatch-boundary (pt gap-tol / ent local-rad)
-  (command "_.REGENALL")
   ;; Try 1: current zoom (fastest)
   (setq ent (tz-try-boundary pt gap-tol))
-  ;; Try 2: zoom to local area around the pick point (~100' radius)
+  (if (and ent (not (tz-boundary-contains-pt ent pt)))
+    (progn (entdel ent) (setq ent nil)))
+  ;; Try 2: local zoom
   (if (null ent)
     (progn
-      (setq local-rad 1200.0)  ; 100 feet in inches
+      (setq local-rad 1200.0)
       (command "_.ZOOM" "_Window"
         (list (- (car pt) local-rad) (- (cadr pt) local-rad))
         (list (+ (car pt) local-rad) (+ (cadr pt) local-rad)))
       (setq ent (tz-try-boundary pt gap-tol))
+      (if (and ent (not (tz-boundary-contains-pt ent pt)))
+        (progn (entdel ent) (setq ent nil)))
       (command "_.ZOOM" "_Previous")))
-  ;; Try 3: zoom extents (slowest, last resort)
+  ;; Try 3: zoom extents
   (if (null ent)
     (progn
       (command "_.ZOOM" "_Extents")
       (setq ent (tz-try-boundary pt gap-tol))
+      (if (and ent (not (tz-boundary-contains-pt ent pt)))
+        (progn (entdel ent) (setq ent nil)))
       (command "_.ZOOM" "_Previous")))
   ent)
 
